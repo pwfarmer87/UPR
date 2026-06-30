@@ -82,7 +82,7 @@ class Settings:
     jenzabar: JenzabarConfig = field(default_factory=JenzabarConfig)
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             data_source=os.getenv("UPR_DATA_SOURCE", "mock").lower(),
             fiscal_year=int(os.getenv("UPR_FISCAL_YEAR", "2025")),

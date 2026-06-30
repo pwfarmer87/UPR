@@ -98,6 +98,6 @@ def yoy_summary(myr: MultiYearReview, metric: str = "net_margin") -> pd.DataFram
     ).fillna(0.0).round(4)
     periods = last_y - first_y
     out["cagr"] = [
-        _cagr(f, l, periods) for f, l in zip(first_col, last_col)
+        _cagr(first, last, periods) for first, last in zip(first_col, last_col)
     ]
     return out.sort_values("change")

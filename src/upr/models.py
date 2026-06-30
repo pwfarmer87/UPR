@@ -28,7 +28,7 @@ class ProgramInputs(BaseModel):
     degree_level: str = "Undergraduate"  # Undergraduate | Graduate
 
     @model_validator(mode="after")
-    def _backfill_name(self) -> "ProgramInputs":
+    def _backfill_name(self) -> ProgramInputs:
         if not self.program_name:
             self.program_name = self.program_code
         if not self.college:

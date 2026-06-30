@@ -71,7 +71,7 @@ class SnapshotStore:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "SnapshotStore":
+    def __enter__(self) -> SnapshotStore:
         return self
 
     def __exit__(self, *exc) -> None:

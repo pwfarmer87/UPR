@@ -41,7 +41,10 @@ def test_missing_program_code_raises():
 
 def test_per_source_restricts_fields_then_merges():
     # NetSuite file has only code + money; name/college backfilled then overridden.
-    sis = "program_code,program_name,college,enrolled_majors,student_credit_hours\nA,Art,Fine Arts,40,1200\n"
+    sis = (
+        "program_code,program_name,college,enrolled_majors,student_credit_hours\n"
+        "A,Art,Fine Arts,40,1200\n"
+    )
     fin = "program_code,instruction_cost,departmental_cost,fees_revenue\nA,500000,80000,20000\n"
 
     sis_p = read_programs(_csv_buffer(sis), source="jenzabar")

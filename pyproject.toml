@@ -19,7 +19,7 @@ dependencies = [
 dashboard = ["streamlit>=1.32", "plotly>=5.20"]
 reporting = ["openpyxl>=3.1"]
 jenzabar-sql = ["pyodbc>=5.0"]  # only for the Jenzabar direct-SQL path
-dev = ["pytest>=8.0", "openpyxl>=3.1"]
+dev = ["pytest>=8.0", "openpyxl>=3.1", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -27,3 +27,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "dashboard"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]

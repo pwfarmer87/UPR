@@ -109,6 +109,7 @@ python -m upr report  --file programs.csv --ops-cost 58000000 \
 python -m upr trends  --years 2024 2025 2026 --metric net_margin
 python -m upr forecast
 python -m upr scenario --tuition 0.05 --enrollment -0.10 --operations 0.05
+python -m upr ingest --net-revenue Net_Revenue_by_Term.xlsx --year 2024 --out programs.csv
 ```
 
 ## Importing data (before the APIs)
@@ -125,6 +126,38 @@ Headers are matched leniently — `Major Code`, `SCH`, `Aid`, `Dept Cost` all ma
 correctly. Blank templates and a filled example live in `data/`
 (`import_template.csv`, `sample_programs_2025.csv`). In the dashboard, use the
 **Import** tab; on the CLI/env, set `UPR_DATA_SOURCE=file` and the file paths.
+
+## Bringing in real exports (`upr.adapters`)
+
+Adapters parse the actual report shapes a registrar/finance office exports and
+turn them into a UPR import CSV:
+
+- **Net Revenue / Discounts / Fees by Term** (xlsx) → per-major gross tuition,
+  institutional aid (discounts), fees, and headcount (distinct students).
+- **Course enrollments (last N years)** (xlsx) → student credit hours by course
+  subject × year.
+- **Faculty load** (PDF) → sections taught by subject (dependency-free text
+  extraction; an Excel export is more reliable).
+
+```bash
+python -m upr ingest --net-revenue "Net_Revenue_by_Term.xlsx" --year 2024 \
+                     --out programs.csv
+python -m upr summary --file programs.csv --driver headcount --ops-cost 8000000
+```
+
+**Two different keys.** Revenue is keyed by the student's **major**
+(`MAJOR_CDE`); SCH and faculty load are keyed by **course subject**
+(department). Those are different units — a Management major takes courses across
+many subjects. The assembler keeps revenue authoritative and only attaches SCH
+when you pass an explicit `subject → program` crosswalk (`--subject-map`);
+otherwise programs carry headcount and revenue, and overhead is best allocated
+**by headcount**. Instruction/department **cost** isn't in these academic
+exports — it comes from NetSuite GL or faculty payroll.
+
+> Privacy: the net-revenue export is student-level PII. UPR processes it
+> in-memory to aggregate; nothing student-level is written except the
+> program-level CSV you ask for. Tests run on synthetic fixtures — no real data
+> is committed.
 
 ## Reporting
 
@@ -268,6 +301,8 @@ src/upr/
   sample_data.py       realistic mock institution
   __main__.py          CLI: summary|template|report|trends|forecast|scenario
 config/                mapping.example.yaml + users.example.yaml
+  adapters/            parse real report exports (net revenue, enrollments,
+                       faculty load) into ProgramInputs / an import CSV
   connectors/
     base.py            Connector interface
     netsuite.py        NetSuite Financials adapter (auth-pending)

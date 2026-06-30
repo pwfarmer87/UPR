@@ -160,6 +160,39 @@ def cmd_scenario(args) -> int:
     return 0
 
 
+def cmd_ingest(args) -> int:
+    import pandas as pd
+
+    from upr.adapters import (
+        build_program_inputs,
+        load_course_enrollments,
+        load_net_revenue,
+        to_import_dataframe,
+    )
+
+    revenue = load_net_revenue(args.net_revenue)
+    course_df = None
+    subject_map = None
+    if args.course_enrollments and args.subject_map:
+        course_df = load_course_enrollments(args.course_enrollments)
+        m = pd.read_csv(args.subject_map)
+        subject_map = dict(zip(m.iloc[:, 0].astype(str), m.iloc[:, 1].astype(str)))
+
+    programs = build_program_inputs(
+        revenue, args.year, course_df=course_df, subject_to_program=subject_map
+    )
+    out_df = to_import_dataframe(programs)
+    out_df.to_csv(args.out, index=False)
+    net = (out_df["gross_tuition_revenue"] - out_df["institutional_aid"]).sum()
+    print(f"Ingested FY{args.year}: {len(programs)} programs -> {args.out}")
+    print(f"  headcount rows: {int(out_df['enrolled_majors'].sum()):,}  "
+          f"gross ${out_df['gross_tuition_revenue'].sum():,.0f}  "
+          f"aid ${out_df['institutional_aid'].sum():,.0f}  net ${net:,.0f}")
+    print("  Load it with: python -m upr summary --file "
+          f"{args.out} --driver headcount --ops-cost <pool>")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="upr", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -194,6 +227,18 @@ def main(argv: list[str] | None = None) -> int:
                       dest="estimate_retention",
                       help="estimate per-program retention from the prior year")
     p_fc.set_defaults(func=cmd_forecast)
+
+    p_in = sub.add_parser(
+        "ingest", help="build a UPR import CSV from institutional report exports")
+    p_in.add_argument("--net-revenue", required=True, dest="net_revenue",
+                      help="Net Revenue/Discounts/Fees by Term export (xlsx)")
+    p_in.add_argument("--year", type=int, required=True, help="academic year")
+    p_in.add_argument("--course-enrollments", dest="course_enrollments",
+                      help="Course enrollments export (xlsx), for SCH")
+    p_in.add_argument("--subject-map", dest="subject_map",
+                      help="CSV mapping course subject -> program_code (for SCH)")
+    p_in.add_argument("--out", required=True, help="output import CSV path")
+    p_in.set_defaults(func=cmd_ingest)
 
     p_sc = sub.add_parser("scenario", help="what-if margin impact of global levers")
     _add_common(p_sc)

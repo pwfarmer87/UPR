@@ -22,12 +22,31 @@ NetSuite tells you *the money*, and Slate tells you the *pipeline* for forecasti
 This build runs end-to-end on **realistic sample data** (`upr.sample_data`) so the
 model and dashboard are usable today. Each live connector is a pluggable adapter:
 
-- **NetSuite** — connector present; needs OAuth authorization before it returns
-  live data (SuiteQL/REST). Until then it falls back to the mock provider.
+- **NetSuite** — **fully implemented** (SuiteQL over REST with OAuth 1.0a TBA
+  HMAC-SHA256 signing, pagination, and a tested GL→program mapping). Needs the
+  connector authorized + `NETSUITE_*` credentials; until then it falls back to
+  mock data. See "NetSuite live integration" below.
 - **Slate** — integrates via Slate web services (query API); adapter stubbed.
 - **Jenzabar** — integrates via Jenzabar API / direct SQL; adapter stubbed.
 
 Set credentials in `.env` (see `.env.example`) and flip `UPR_DATA_SOURCE=live`.
+
+### NetSuite live integration
+
+Set the five `NETSUITE_*` values in `.env` (account id, consumer key/secret,
+token id/secret from an integration record + access token). The connector then:
+
+1. POSTs `SUITEQL_PROGRAM_FINANCIALS` to
+   `https://<account>.suitetalk.api.netsuite.com/services/rest/query/v1/suiteql`,
+   signed per request, following `hasMore` pagination.
+2. Maps each GL row to a program by **department** (the `program_code`) and each
+   account to a revenue/cost bucket via `_BUCKET_SPECS` (tune to your chart of
+   accounts). Departments in `OPERATIONS_DEPARTMENTS` roll into the shared
+   overhead pool instead of a program's direct cost.
+
+The mapping (`classify_account`, `aggregate_gl_rows`, `operations_pool_from_rows`)
+and the OAuth header builder are pure functions with unit tests, so the chart of
+accounts can be adjusted and verified without hitting NetSuite.
 
 ## Quick start
 
@@ -50,6 +69,8 @@ python -m upr template --out programs.csv          # blank unified import templa
 python -m upr summary --file programs.csv --ops-cost 58000000
 python -m upr report  --file programs.csv --ops-cost 58000000 \
                       --out review.html --excel review.xlsx
+python -m upr trends  --years 2024 2025 2026 --metric net_margin
+python -m upr forecast
 ```
 
 ## Importing data (before the APIs)
@@ -75,6 +96,18 @@ From the **Reports** tab or `python -m upr report`:
   rollup, and the full program table. Standalone and **prints cleanly to PDF**.
 - **Excel workbook** — `Summary`, `Programs`, `Underwater`, `By College` sheets.
 - **CSV** — the computed program table.
+
+## Multi-year trends & forecast
+
+The **Trends & Forecast** tab (and `upr.trends` / `upr.forecast`):
+
+- **Trends** — runs the review across fiscal years and shows institution totals
+  by year, per-program trajectories, and a first-vs-last mover list with CAGR.
+- **Forecast** — projects next year's enrollment, revenue, and contribution from
+  the **Slate funnel** (applications → admits → deposits) using transparent
+  retention/melt assumptions, and flags programs where economics and pipeline
+  diverge: *"healthy but shrinking"* (profitable, enrollment falling) and
+  *"improving"* (underwater, pipeline growing).
 
 ## The financial model (per program, per fiscal year)
 
@@ -110,9 +143,11 @@ src/upr/
   sources.py           which fields each source system owns (merge/import)
   importing.py         CSV/Excel import + templates (the pre-API path)
   reporting.py         HTML + Excel report builders, by-college rollup
+  trends.py            multi-year trend analysis (YoY, CAGR, trajectories)
+  forecast.py          next-year enrollment/margin forecast from Slate funnel
   pipeline.py          pull/import → merge → compute
   sample_data.py       realistic mock institution
-  __main__.py          CLI: summary | template | report
+  __main__.py          CLI: summary | template | report | trends | forecast
   connectors/
     base.py            Connector interface
     netsuite.py        NetSuite Financials adapter (auth-pending)

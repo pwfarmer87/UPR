@@ -20,6 +20,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from upr.config import Settings  # noqa: E402
+from upr.forecast import ForecastAssumptions, forecast_frame, forecast_totals  # noqa: E402
 from upr.importing import ImportError_, read_programs, template_csv  # noqa: E402
 from upr.models import InstitutionInputs  # noqa: E402
 from upr.pipeline import compute_review, merge_sources, run_review  # noqa: E402
@@ -27,6 +28,13 @@ from upr.reporting import (  # noqa: E402
     build_excel_report,
     build_html_report,
     by_college,
+)
+from upr.trends import (  # noqa: E402
+    MultiYearReview,
+    institution_trend,
+    run_multiyear,
+    trend_frame,
+    yoy_summary,
 )
 
 st.set_page_config(page_title="UPR — Program Financial Review", layout="wide")
@@ -80,7 +88,9 @@ def _current_review():
     return run_review(_settings("mock", None))
 
 
-tab_import, tab_dash, tab_reports = st.tabs(["📥 Import", "📊 Dashboard", "📄 Reports"])
+tab_import, tab_dash, tab_trends, tab_reports = st.tabs(
+    ["📥 Import", "📊 Dashboard", "📈 Trends & Forecast", "📄 Reports"]
+)
 
 # --------------------------------------------------------------------------- #
 # Import tab
@@ -246,6 +256,102 @@ with tab_dash:
             "cost_per_credit_hour": "${:,.0f}",
         }),
         use_container_width=True, hide_index=True, height=480,
+    )
+
+# --------------------------------------------------------------------------- #
+# Trends & Forecast tab
+# --------------------------------------------------------------------------- #
+with tab_trends:
+    st.title("Trends & Forecast")
+    imported = bool(st.session_state.get("imported_inputs"))
+
+    st.subheader("Multi-year trend")
+    if imported:
+        st.info(
+            "Multi-year trends need a per-year history. Imported data is a single "
+            "snapshot, so only the current year is shown. Load files for several "
+            "years (or connect the live sources) to see year-over-year movement."
+        )
+        myr = MultiYearReview(years=[fiscal_year], results={fiscal_year: result})
+    else:
+        myr = run_multiyear([2024, 2025, 2026], _settings("mock", None))
+
+    inst = institution_trend(myr)
+    m1, m2 = st.columns([2, 3])
+    with m1:
+        st.caption("Institution net margin by year")
+        st.dataframe(
+            inst[["fiscal_year", "total_revenue", "total_cost", "net_margin",
+                  "net_margin_ratio"]].style.format({
+                "total_revenue": "${:,.0f}", "total_cost": "${:,.0f}",
+                "net_margin": "${:,.0f}", "net_margin_ratio": "{:.1%}",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+    with m2:
+        metric = st.selectbox(
+            "Trajectory metric",
+            ["net_margin", "enrolled_majors", "total_revenue", "net_margin_ratio"],
+        )
+        if len(myr.years) > 1:
+            long = trend_frame(myr)
+            line = px.line(
+                long, x="fiscal_year", y=metric, color="program_name", markers=True,
+                labels={"fiscal_year": "Fiscal year", "program_name": "Program"},
+            )
+            line.update_layout(height=420, margin=dict(l=0, r=0, t=10, b=0))
+            st.plotly_chart(line, use_container_width=True)
+        else:
+            st.caption("Add more years to see trajectories.")
+
+    if len(myr.years) > 1:
+        st.caption("Biggest movers")
+        st.dataframe(
+            yoy_summary(myr, metric).head(10), use_container_width=True, hide_index=True
+        )
+
+    st.divider()
+    st.subheader("Next-year forecast (from the Slate admissions pipeline)")
+    fc1, fc2 = st.columns(2)
+    retention = fc1.slider("Retention rate (continuing majors kept)", 0.5, 1.0, 0.82, 0.01)
+    melt = fc2.slider("Summer melt (deposits that don't enroll)", 0.0, 0.4, 0.12, 0.01)
+    assumptions = ForecastAssumptions(retention_rate=retention, melt_rate=melt)
+
+    ftot = forecast_totals(result, assumptions)
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Current majors", f"{ftot['current_majors']:,}")
+    g2.metric("Projected majors", f"{ftot['projected_majors']:,}",
+              f"{ftot['projected_pct_change']*100:+.1f}%")
+    g3.metric("Projected revenue", money(ftot["projected_revenue"]))
+    g4.metric("Programs to watch",
+              f"{ftot['programs_shrinking'] + ftot['programs_improving']}")
+
+    fc_df = forecast_frame(result, assumptions)
+    watch = fc_df[fc_df["watch_flag"] != "Stable"]
+    if not watch.empty:
+        st.caption("⚠️ Economics and pipeline pointing in opposite directions")
+        st.dataframe(
+            watch[["program_name", "college", "watch_flag", "enrolled_majors",
+                   "projected_majors", "projected_pct_change", "yield_rate",
+                   "net_margin"]].style.format({
+                "projected_pct_change": "{:+.1%}", "yield_rate": "{:.1%}",
+                "net_margin": "${:,.0f}",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+
+    st.caption("All programs — projection")
+    st.dataframe(
+        fc_df[["program_code", "program_name", "enrolled_majors", "admits",
+               "deposits", "admit_rate", "yield_rate", "projected_majors",
+               "projected_pct_change", "projected_revenue",
+               "projected_contribution_margin", "watch_flag"]].style.format({
+            "admit_rate": "{:.1%}", "yield_rate": "{:.1%}",
+            "projected_pct_change": "{:+.1%}",
+            "projected_revenue": "${:,.0f}",
+            "projected_contribution_margin": "${:,.0f}",
+        }),
+        use_container_width=True, hide_index=True, height=420,
     )
 
 # --------------------------------------------------------------------------- #

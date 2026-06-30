@@ -14,9 +14,11 @@ import argparse
 import sys
 
 from upr.config import Settings
+from upr.forecast import forecast_totals, watch_list
 from upr.importing import template_csv
 from upr.pipeline import run_review
 from upr.reporting import build_excel_report, build_html_report
+from upr.trends import institution_trend, run_multiyear, yoy_summary
 
 
 def _settings_from_args(args) -> Settings:
@@ -85,6 +87,45 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_trends(args) -> int:
+    settings = _settings_from_args(args)
+    myr = run_multiyear(args.years, settings)
+    print(f"Source: {', '.join(myr.latest.sources_used)}  "
+          f"years: {', '.join(map(str, myr.years))}")
+    it = institution_trend(myr)
+    print("\nInstitution totals by year:")
+    for _, r in it.iterrows():
+        print(f"  FY{int(r['fiscal_year'])}: revenue ${r['total_revenue']:,.0f}  "
+              f"net ${r['net_margin']:,.0f}  ({r['net_margin_ratio']*100:.1f}%)")
+    summary = yoy_summary(myr, args.metric)
+    print(f"\nBiggest movers by {args.metric} "
+          f"(FY{min(myr.years)}→FY{max(myr.years)}):")
+    for _, r in summary.head(5).iterrows():
+        print(f"  {r['program_name']:<30} change {r['change']:>14,.0f}  "
+              f"CAGR {r['cagr']*100:>6.1f}%")
+    return 0
+
+
+def cmd_forecast(args) -> int:
+    result = run_review(_settings_from_args(args))
+    t = forecast_totals(result)
+    print(f"Source: {', '.join(result.sources_used)}  FY{result.fiscal_year} "
+          f"-> FY{result.fiscal_year + 1} projection")
+    print(f"Majors: {t['current_majors']:,} -> {t['projected_majors']:,}  "
+          f"({t['projected_pct_change']*100:+.1f}%)")
+    print(f"Projected revenue: ${t['projected_revenue']:,.0f}  "
+          f"contribution ${t['projected_contribution_margin']:,.0f}")
+    watch = watch_list(result)
+    if not watch.empty:
+        print("\nWatch list:")
+        for _, r in watch.iterrows():
+            print(f"  [{r['watch_flag']}] {r['program_name']:<28} "
+                  f"majors {r['enrolled_majors']} -> {r['projected_majors']} "
+                  f"({r['projected_pct_change']*100:+.1f}%)  "
+                  f"net ${r['net_margin']:,.0f}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="upr", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -104,6 +145,16 @@ def main(argv: list[str] | None = None) -> int:
     p_rep.add_argument("--out", required=True, help="HTML output path")
     p_rep.add_argument("--excel", help="also write an .xlsx workbook here")
     p_rep.set_defaults(func=cmd_report)
+
+    p_tr = sub.add_parser("trends", help="multi-year trend summary")
+    _add_common(p_tr)
+    p_tr.add_argument("--years", type=int, nargs="+", default=[2024, 2025, 2026])
+    p_tr.add_argument("--metric", default="net_margin")
+    p_tr.set_defaults(func=cmd_trends)
+
+    p_fc = sub.add_parser("forecast", help="next-year enrollment/margin forecast")
+    _add_common(p_fc)
+    p_fc.set_defaults(func=cmd_forecast)
 
     args = parser.parse_args(argv)
     return args.func(args)

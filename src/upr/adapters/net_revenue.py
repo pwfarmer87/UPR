@@ -102,6 +102,14 @@ def revenue_by_program(df: pd.DataFrame, year: int | None = None) -> pd.DataFram
         grouped = grouped.merge(meta, on="major_code", how="left")
     if "major_name" in grouped.columns:
         grouped["major_name"] = grouped["major_name"].map(_clean_major_name)
+        # Several major codes can share a cleaned name (e.g. 6 "Education" codes);
+        # disambiguate by appending the code so display names stay unique.
+        counts = grouped["major_name"].value_counts()
+        dup = set(counts[counts > 1].index)
+        grouped["major_name"] = [
+            f"{name} ({code})" if name in dup else name
+            for name, code in zip(grouped["major_name"], grouped["major_code"])
+        ]
 
     grouped = grouped.rename(columns={
         "gross": "gross_tuition_revenue",

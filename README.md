@@ -109,6 +109,7 @@ python -m upr report  --file programs.csv --ops-cost 58000000 \
 python -m upr trends  --years 2024 2025 2026 --metric net_margin
 python -m upr forecast
 python -m upr scenario --tuition 0.05 --enrollment -0.10 --operations 0.05
+python -m upr crosswalk --net-revenue R.xlsx --course-enrollments C.xlsx --year 2024 --out xw.csv
 python -m upr ingest --net-revenue Net_Revenue_by_Term.xlsx --year 2024 --out programs.csv
 ```
 
@@ -145,14 +146,27 @@ python -m upr ingest --net-revenue "Net_Revenue_by_Term.xlsx" --year 2024 \
 python -m upr summary --file programs.csv --driver headcount --ops-cost 8000000
 ```
 
-**Two different keys.** Revenue is keyed by the student's **major**
-(`MAJOR_CDE`); SCH and faculty load are keyed by **course subject**
-(department). Those are different units — a Management major takes courses across
-many subjects. The assembler keeps revenue authoritative and only attaches SCH
-when you pass an explicit `subject → program` crosswalk (`--subject-map`);
-otherwise programs carry headcount and revenue, and overhead is best allocated
-**by headcount**. Instruction/department **cost** isn't in these academic
-exports — it comes from NetSuite GL or faculty payroll.
+**Reviewing by program (major code).** The program key is the **major code**
+(`MAJOR_CDE`). Revenue/headcount are major-native. SCH and faculty load are keyed
+by **course subject** (department), so to attribute them to majors you supply a
+`subject → program` crosswalk. UPR scaffolds one for you — auto-seeding subjects
+whose code matches a major code (e.g. `BIOL`, `ENGL`, `MATH`) and leaving the
+rest blank, largest-SCH first:
+
+```bash
+python -m upr crosswalk --net-revenue R.xlsx --course-enrollments C.xlsx \
+                        --year 2024 --out crosswalk.csv --majors-out majors.csv
+# fill program_code for the remaining subjects (majors.csv lists valid codes), then:
+python -m upr ingest --net-revenue R.xlsx --course-enrollments C.xlsx \
+                     --subject-map crosswalk.csv --year 2024 --out programs.csv
+```
+
+Each subject's SCH is credited to exactly one program (no double counting).
+Without a crosswalk, programs still carry headcount + revenue; allocate overhead
+**by headcount**. Duplicate major names (several codes named "Education") are
+disambiguated by code. Instruction/department **cost** isn't in these academic
+exports — it comes from NetSuite GL or faculty payroll, keyed to the same major
+codes via `config/mapping.yaml`.
 
 > Privacy: the net-revenue export is student-level PII. UPR processes it
 > in-memory to aggregate; nothing student-level is written except the

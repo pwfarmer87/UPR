@@ -138,6 +138,31 @@ def cmd_forecast(args) -> int:
     return 0
 
 
+def cmd_crosswalk(args) -> int:
+    from upr.adapters import load_course_enrollments, load_net_revenue
+    from upr.adapters.crosswalk import build_crosswalk_template, majors_reference
+
+    revenue = load_net_revenue(args.net_revenue)
+    course_df = load_course_enrollments(args.course_enrollments)
+    template = build_crosswalk_template(course_df, revenue, args.year)
+    template.to_csv(args.out, index=False)
+
+    seeded = int((template["seeded"] == "exact").sum())
+    total = len(template)
+    print(f"Crosswalk template FY{args.year}: {total} subjects -> {args.out}")
+    print(f"  auto-seeded (exact code match): {seeded}; "
+          f"fill in the remaining {total - seeded}.")
+    unmapped = template[template["program_code"] == ""].head(8)
+    if not unmapped.empty:
+        print("  Largest unmapped subjects (by SCH):")
+        for _, r in unmapped.iterrows():
+            print(f"    {r['subject']:6} {r['student_credit_hours']:>8,.0f} SCH")
+    if args.majors_out:
+        majors_reference(revenue, args.year).to_csv(args.majors_out, index=False)
+        print(f"  Wrote valid program codes -> {args.majors_out}")
+    return 0
+
+
 def cmd_scenario(args) -> int:
     baseline = run_review(_settings_from_args(args))
     scenario = Scenario(
@@ -161,22 +186,20 @@ def cmd_scenario(args) -> int:
 
 
 def cmd_ingest(args) -> int:
-    import pandas as pd
-
     from upr.adapters import (
         build_program_inputs,
         load_course_enrollments,
         load_net_revenue,
         to_import_dataframe,
     )
+    from upr.adapters.crosswalk import load_subject_map
 
     revenue = load_net_revenue(args.net_revenue)
     course_df = None
     subject_map = None
     if args.course_enrollments and args.subject_map:
         course_df = load_course_enrollments(args.course_enrollments)
-        m = pd.read_csv(args.subject_map)
-        subject_map = dict(zip(m.iloc[:, 0].astype(str), m.iloc[:, 1].astype(str)))
+        subject_map = load_subject_map(args.subject_map)
 
     programs = build_program_inputs(
         revenue, args.year, course_df=course_df, subject_to_program=subject_map
@@ -239,6 +262,18 @@ def main(argv: list[str] | None = None) -> int:
                       help="CSV mapping course subject -> program_code (for SCH)")
     p_in.add_argument("--out", required=True, help="output import CSV path")
     p_in.set_defaults(func=cmd_ingest)
+
+    p_cw = sub.add_parser(
+        "crosswalk", help="scaffold a subject -> program (major code) crosswalk")
+    p_cw.add_argument("--net-revenue", required=True, dest="net_revenue",
+                      help="Net Revenue export (xlsx) — source of valid major codes")
+    p_cw.add_argument("--course-enrollments", required=True, dest="course_enrollments",
+                      help="Course enrollments export (xlsx) — source of subjects")
+    p_cw.add_argument("--year", type=int, required=True, help="academic year")
+    p_cw.add_argument("--out", required=True, help="output crosswalk CSV path")
+    p_cw.add_argument("--majors-out", dest="majors_out",
+                      help="also write the valid program-code reference here")
+    p_cw.set_defaults(func=cmd_crosswalk)
 
     p_sc = sub.add_parser("scenario", help="what-if margin impact of global levers")
     _add_common(p_sc)

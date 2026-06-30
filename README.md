@@ -58,6 +58,8 @@ accounts can be adjusted and verified without hitting NetSuite.
 
 ## Quick start
 
+### macOS / Linux
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -68,6 +70,33 @@ streamlit run dashboard/app.py
 # run the tests
 pytest -q
 ```
+
+### Windows (PowerShell)
+
+Use a virtual environment and run tools via `python -m`. Calling the venv's
+Python directly avoids the PowerShell execution-policy prompt that blocks
+`Activate.ps1`:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# run the dashboard (opens http://localhost:8501)
+.\.venv\Scripts\python.exe -m streamlit run dashboard/app.py
+
+# run the tests
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+**Why a venv?** Installing into the global `C:\PythonXX\Scripts` often fails with
+`OSError: [WinError 2] ... watchmedo.exe.deleteme` (antivirus/permission lock on
+the global Scripts dir), which rolls back the whole install — that's why
+`streamlit`/`pytest` end up "not recognized". A venv has its own writable
+`Scripts` dir and sidesteps it. Running as `python -m streamlit` / `python -m
+pytest` also avoids needing those tools on your PATH. No need to set
+`PYTHONPATH`: the dashboard adds `src` itself and pytest reads it from
+`pyproject.toml`.
 
 ### Command line
 

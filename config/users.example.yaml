@@ -1,0 +1,15 @@
+# UPR user store — copy to config/users.yaml (or point UPR_USERS_FILE at it)
+# to enable login + roles. If this file is absent, the app runs open (no auth).
+#
+# Generate an entry (prompts for a password):
+#   python -m upr.auth add pfarmer "Patrick Farmer" admin
+#
+# Roles: viewer (read-only) | analyst (+import/scenario/snapshot) | admin (+manage)
+# The salt/password_hash below are EXAMPLES — regenerate your own.
+users:
+  - username: admin
+    name: Administrator
+    role: admin
+    # password for this example entry is "changeme" — replace before use
+    salt: "0123456789abcdef0123456789abcdef"
+    password_hash: "REGENERATE_WITH_python_-m_upr.auth_add"

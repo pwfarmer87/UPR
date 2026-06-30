@@ -18,6 +18,7 @@ from upr.forecast import forecast_totals, watch_list
 from upr.importing import template_csv
 from upr.pipeline import run_review
 from upr.reporting import build_excel_report, build_html_report
+from upr.scenario import Scenario, compare_totals, run_scenario
 from upr.trends import institution_trend, run_multiyear, yoy_summary
 
 
@@ -128,6 +129,28 @@ def cmd_forecast(args) -> int:
     return 0
 
 
+def cmd_scenario(args) -> int:
+    baseline = run_review(_settings_from_args(args))
+    scenario = Scenario(
+        tuition_change_pct=args.tuition,
+        enrollment_change_pct=args.enrollment,
+        aid_change_pct=args.aid,
+        instruction_cost_change_pct=args.instruction,
+        departmental_cost_change_pct=args.departmental,
+        operations_cost_change_pct=args.operations,
+    )
+    result = run_scenario(baseline, scenario)
+    ct = compare_totals(baseline, result)
+    print(f"Source: {', '.join(baseline.sources_used)}  FY{baseline.fiscal_year}")
+    print(f"Revenue:    ${ct['revenue_base']:,.0f} -> ${ct['revenue_scenario']:,.0f}"
+          f"  ({ct['revenue_delta']:+,.0f})")
+    print(f"Net margin: ${ct['net_margin_base']:,.0f} -> ${ct['net_margin_scenario']:,.0f}"
+          f"  ({ct['net_margin_delta']:+,.0f})")
+    print(f"Margin %:   {ct['net_margin_ratio_base']*100:.1f}% -> "
+          f"{ct['net_margin_ratio_scenario']*100:.1f}%")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="upr", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -159,6 +182,14 @@ def main(argv: list[str] | None = None) -> int:
     p_fc = sub.add_parser("forecast", help="next-year enrollment/margin forecast")
     _add_common(p_fc)
     p_fc.set_defaults(func=cmd_forecast)
+
+    p_sc = sub.add_parser("scenario", help="what-if margin impact of global levers")
+    _add_common(p_sc)
+    for name in ("tuition", "enrollment", "aid", "instruction", "departmental",
+                 "operations"):
+        p_sc.add_argument(f"--{name}", type=float, default=0.0,
+                          help=f"{name} change as a fraction (e.g. 0.05 = +5%%)")
+    p_sc.set_defaults(func=cmd_scenario)
 
     args = parser.parse_args(argv)
     return args.func(args)

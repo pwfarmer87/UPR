@@ -2,10 +2,8 @@
 
 Run:  streamlit run dashboard/app.py
 
-Three tabs:
-  * Import   — upload CSV/Excel (unified or per-source) or use sample data
-  * Dashboard — KPIs, charts, underwater programs, detail table
-  * Reports  — download formatted HTML / Excel reports
+Tabs: Import · Dashboard · Trends & Forecast · Scenario · Reports (+ Admin).
+Optional login + roles gate the action tabs when a user store is configured.
 """
 
 from __future__ import annotations
@@ -19,9 +17,11 @@ import streamlit as st
 # Make the src package importable when run via `streamlit run`.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from upr import auth  # noqa: E402
 from upr.config import Settings  # noqa: E402
 from upr.forecast import ForecastAssumptions, forecast_frame, forecast_totals  # noqa: E402
 from upr.importing import ImportError_, read_programs, template_csv  # noqa: E402
+from upr.mapping_config import get_mapping  # noqa: E402
 from upr.models import InstitutionInputs  # noqa: E402
 from upr.pipeline import compute_review, merge_sources, run_review  # noqa: E402
 from upr.reporting import (  # noqa: E402
@@ -29,6 +29,8 @@ from upr.reporting import (  # noqa: E402
     build_html_report,
     by_college,
 )
+from upr.scenario import Scenario, compare, compare_totals, run_scenario  # noqa: E402
+from upr.storage import SnapshotStore  # noqa: E402
 from upr.trends import (  # noqa: E402
     MultiYearReview,
     institution_trend,
@@ -45,10 +47,52 @@ def money(x: float) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Authentication gate (active only when a user store is configured)
+# --------------------------------------------------------------------------- #
+def _login_gate():
+    """Return the current User, or None when auth is disabled (open mode)."""
+    if not auth.auth_enabled():
+        return None
+    if "user" in st.session_state:
+        return st.session_state["user"]
+    st.title("UPR — sign in")
+    users = auth.load_users(auth.users_file_path())
+    with st.form("login"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Sign in"):
+            user = auth.authenticate(username, password, users)
+            if user:
+                st.session_state["user"] = user
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+    st.stop()
+
+
+USER = _login_gate()
+
+
+def can(capability: str) -> bool:
+    """Capability check — always True in open mode, role-based when auth is on."""
+    return USER is None or USER.can(capability)
+
+
+class _SkipImport(Exception):
+    """Internal: skip the import block when the role lacks the capability."""
+
+
+# --------------------------------------------------------------------------- #
 # Sidebar — shared settings
 # --------------------------------------------------------------------------- #
 st.sidebar.title("UPR")
 st.sidebar.caption("University Program (Margin) Review")
+
+if USER is not None:
+    st.sidebar.success(f"{USER.name} · {USER.role}")
+    if st.sidebar.button("Sign out"):
+        del st.session_state["user"]
+        st.rerun()
 
 base = Settings.from_env()
 drivers = ["credit_hours", "headcount", "direct_cost"]
@@ -88,9 +132,13 @@ def _current_review():
     return run_review(_settings("mock", None))
 
 
-tab_import, tab_dash, tab_trends, tab_reports = st.tabs(
-    ["📥 Import", "📊 Dashboard", "📈 Trends & Forecast", "📄 Reports"]
-)
+_tab_labels = ["📥 Import", "📊 Dashboard", "📈 Trends & Forecast",
+               "🔮 Scenario", "📄 Reports"]
+if can("admin"):
+    _tab_labels.append("⚙️ Admin")
+_tabs = st.tabs(_tab_labels)
+tab_import, tab_dash, tab_trends, tab_scenario, tab_reports = _tabs[:5]
+tab_admin = _tabs[5] if can("admin") else None
 
 # --------------------------------------------------------------------------- #
 # Import tab
@@ -117,7 +165,11 @@ with tab_import:
     def _ingest(uploaded, source):
         return read_programs(uploaded.getvalue(), filename=uploaded.name, source=source)
 
+    if not can("import"):
+        st.warning("Your role can view results but not import data.")
     try:
+        if not can("import"):
+            raise _SkipImport
         if mode == "Unified file":
             up = st.file_uploader("Unified file (CSV or Excel)", type=["csv", "xlsx", "xls"])
             if up is not None:
@@ -144,6 +196,8 @@ with tab_import:
                     f"Merged {len(merged)} programs from "
                     f"{', '.join(s for s, _ in contributions)}."
                 )
+    except _SkipImport:
+        pass
     except ImportError_ as exc:
         st.error(f"Import failed: {exc}")
 
@@ -354,6 +408,107 @@ with tab_trends:
         use_container_width=True, hide_index=True, height=420,
     )
 
+    st.divider()
+    st.subheader("Saved history (snapshots)")
+    st.caption(
+        "Save the current review to build trends from **real saved history** "
+        "instead of re-running a synthetic year."
+    )
+    store = SnapshotStore(base.db_path)
+    sc1, sc2 = st.columns([3, 1])
+    label = sc1.text_input("Snapshot label", value=f"FY{fiscal_year}")
+    if sc2.button("💾 Save snapshot", disabled=not can("snapshot")):
+        sid = store.save(result, label=label)
+        st.success(f"Saved snapshot #{sid}: {label}")
+    if not can("snapshot"):
+        st.caption("Your role can view history but not save snapshots.")
+
+    saved = store.trend()
+    if not saved.empty:
+        st.dataframe(
+            saved[["id", "label", "fiscal_year", "created_at", "total_revenue",
+                   "net_margin", "net_margin_ratio"]].style.format({
+                "total_revenue": "${:,.0f}", "net_margin": "${:,.0f}",
+                "net_margin_ratio": "{:.1%}",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+        if len(saved) > 1:
+            saved_line = px.line(
+                saved.sort_values("fiscal_year"), x="fiscal_year", y="net_margin",
+                markers=True, labels={"fiscal_year": "Fiscal year",
+                                      "net_margin": "Net margin ($)"},
+            )
+            saved_line.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0))
+            st.plotly_chart(saved_line, use_container_width=True)
+    else:
+        st.caption("No snapshots saved yet.")
+
+# --------------------------------------------------------------------------- #
+# Scenario tab
+# --------------------------------------------------------------------------- #
+with tab_scenario:
+    st.title("Scenario modeling")
+    st.write(
+        "Adjust the levers and see the margin impact against the current "
+        "baseline. Nothing here changes saved data."
+    )
+    if not can("scenario"):
+        st.warning("Your role can view results but not run scenarios.")
+    else:
+        s1, s2, s3 = st.columns(3)
+        tuition = s1.slider("Tuition rate change", -0.20, 0.20, 0.0, 0.01,
+                            format="%+.0f%%")
+        enrollment = s2.slider("Enrollment change", -0.30, 0.30, 0.0, 0.01,
+                               format="%+.0f%%")
+        use_target = s3.checkbox("Set target discount rate")
+        if use_target:
+            target_discount = s3.slider("Target discount rate", 0.0, 0.7, 0.45, 0.01)
+            aid_change = 0.0
+        else:
+            target_discount = None
+            aid_change = s3.slider("Institutional aid change", -0.30, 0.30, 0.0, 0.01,
+                                   format="%+.0f%%")
+
+        s4, s5, s6 = st.columns(3)
+        instr = s4.slider("Instruction cost change", -0.20, 0.20, 0.0, 0.01,
+                          format="%+.0f%%")
+        dept = s5.slider("Departmental cost change", -0.20, 0.20, 0.0, 0.01,
+                         format="%+.0f%%")
+        ops = s6.slider("Operations pool change", -0.20, 0.20, 0.0, 0.01,
+                        format="%+.0f%%")
+
+        scenario = Scenario(
+            tuition_change_pct=tuition, enrollment_change_pct=enrollment,
+            aid_change_pct=aid_change, target_discount_rate=target_discount,
+            instruction_cost_change_pct=instr, departmental_cost_change_pct=dept,
+            operations_cost_change_pct=ops,
+        )
+        scen_result = run_scenario(result, scenario)
+        ct = compare_totals(result, scen_result)
+
+        st.divider()
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Revenue", money(ct["revenue_scenario"]),
+                  money(ct["revenue_delta"]))
+        k2.metric("Net margin", money(ct["net_margin_scenario"]),
+                  money(ct["net_margin_delta"]))
+        k3.metric("Net margin %",
+                  f"{ct['net_margin_ratio_scenario']*100:.1f}%",
+                  f"{(ct['net_margin_ratio_scenario']-ct['net_margin_ratio_base'])*100:+.1f} pts")
+
+        cmp_df = compare(result, scen_result)
+        st.caption("Biggest net-margin swings by program")
+        st.dataframe(
+            cmp_df[["program_name", "college", "net_margin_base",
+                    "net_margin_scenario", "net_margin_delta",
+                    "revenue_delta"]].style.format({
+                "net_margin_base": "${:,.0f}", "net_margin_scenario": "${:,.0f}",
+                "net_margin_delta": "${:,.0f}", "revenue_delta": "${:,.0f}",
+            }),
+            use_container_width=True, hide_index=True, height=440,
+        )
+
 # --------------------------------------------------------------------------- #
 # Reports tab
 # --------------------------------------------------------------------------- #
@@ -397,3 +552,44 @@ with tab_reports:
     st.divider()
     st.subheader("Report preview")
     st.components.v1.html(report_html, height=600, scrolling=True)
+
+# --------------------------------------------------------------------------- #
+# Admin tab (only when the signed-in user is an admin)
+# --------------------------------------------------------------------------- #
+if tab_admin is not None:
+    with tab_admin:
+        st.title("Admin")
+        st.subheader("Active mapping configuration")
+        st.caption(
+            "Remap source columns / GL accounts without code by setting "
+            "`UPR_MAPPING_FILE` (see config/mapping.example.yaml)."
+        )
+        mapping = get_mapping()
+        st.write(f"**Source:** {mapping.source_path or 'built-in defaults'}")
+        if mapping.column_aliases:
+            st.write("**Extra column aliases**")
+            st.json(mapping.column_aliases)
+        st.write("**NetSuite account buckets**")
+        st.json(mapping.netsuite_buckets or "built-in defaults (4000/4900/5000…)")
+        st.write("**Operations departments**")
+        st.json(sorted(mapping.operations_departments) if mapping.operations_departments
+                else "built-in defaults")
+
+        st.divider()
+        st.subheader("Users")
+        if auth.auth_enabled():
+            users = auth.load_users(auth.users_file_path())
+            st.dataframe(
+                [{"username": u.username, "name": u.name, "role": u.role}
+                 for u in users.values()],
+                use_container_width=True, hide_index=True,
+            )
+            st.caption(
+                'Add a user: `python -m upr.auth add <username> "<name>" <role>` '
+                "and append the output to your users file."
+            )
+        else:
+            st.info(
+                "Auth is disabled (open mode). Create config/users.yaml "
+                "(see config/users.example.yaml) to enable login and roles."
+            )

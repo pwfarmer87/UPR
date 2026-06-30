@@ -90,25 +90,44 @@ class ConnectorNotConfigured(RuntimeError):
 # --------------------------------------------------------------------------- #
 # Pure mapping (unit-testable without a network)
 # --------------------------------------------------------------------------- #
-def classify_account(acctnumber: str | int | None) -> tuple[str, int] | None:
+def _active_buckets() -> list[dict]:
+    """Bucket specs from the mapping config if present, else the built-ins."""
+    from upr.mapping_config import get_mapping  # local import to avoid a cycle
+
+    return get_mapping().netsuite_buckets or _BUCKET_SPECS
+
+
+def _active_operations_departments() -> set[str]:
+    from upr.mapping_config import get_mapping  # local import to avoid a cycle
+
+    return get_mapping().operations_departments or OPERATIONS_DEPARTMENTS
+
+
+def classify_account(
+    acctnumber: str | int | None, specs: list[dict] | None = None
+) -> tuple[str, int] | None:
     """Return (program_field, sign) for a GL account number, or None to ignore."""
     if acctnumber is None:
         return None
     acct = str(acctnumber).strip()
     if not acct:
         return None
-    for spec in _BUCKET_SPECS:
-        if "exact" in spec and acct == spec["exact"]:
-            return spec["field"], spec["sign"]
+    for spec in specs if specs is not None else _active_buckets():
+        sign = int(spec.get("sign", 1))
+        if "exact" in spec and acct == str(spec["exact"]):
+            return spec["field"], sign
         if "range" in spec:
-            lo, hi = spec["range"]
+            lo, hi = (str(x) for x in spec["range"])
             if lo <= acct <= hi:
-                return spec["field"], spec["sign"]
+                return spec["field"], sign
     return None
 
 
 def _is_operations(program_code: str | None) -> bool:
-    return str(program_code or "").strip().lower() in OPERATIONS_DEPARTMENTS
+    return (
+        str(program_code or "").strip().lower()
+        in _active_operations_departments()
+    )
 
 
 def aggregate_gl_rows(rows: list[dict]) -> list[ProgramInputs]:

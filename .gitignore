@@ -8,3 +8,6 @@ venv/
 .pytest_cache/
 .DS_Store
 data/*.local.*
+data/*.db
+config/users.yaml
+config/mapping.yaml

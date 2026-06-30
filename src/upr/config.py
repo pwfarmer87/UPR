@@ -70,6 +70,8 @@ class Settings:
     # Optional institution-wide operations pool override (used for file mode and
     # to let the dashboard set it interactively).
     operations_cost: float | None = None
+    # SQLite snapshot store path.
+    db_path: str = "data/upr.db"
     # File-import paths (UPR_DATA_SOURCE=file): one unified file, or per-source.
     import_file: str | None = None
     jenzabar_file: str | None = None
@@ -86,6 +88,7 @@ class Settings:
             fiscal_year=int(os.getenv("UPR_FISCAL_YEAR", "2025")),
             allocation_driver=os.getenv("UPR_ALLOCATION_DRIVER", "credit_hours"),
             operations_cost=_opt_float("UPR_OPERATIONS_COST"),
+            db_path=os.getenv("UPR_DB_PATH", "data/upr.db"),
             import_file=os.getenv("UPR_IMPORT_FILE") or None,
             jenzabar_file=os.getenv("UPR_JENZABAR_FILE") or None,
             netsuite_file=os.getenv("UPR_NETSUITE_FILE") or None,

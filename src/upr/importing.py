@@ -65,7 +65,7 @@ def _normalize_header(h: str) -> str:
 
 
 def _build_header_map() -> dict[str, str]:
-    """normalized header -> canonical field."""
+    """normalized header -> canonical field (built-in aliases only)."""
     mapping: dict[str, str] = {}
     for field in ALL_INPUT_FIELDS:
         mapping[field] = field
@@ -75,6 +75,21 @@ def _build_header_map() -> dict[str, str]:
 
 
 _HEADER_MAP = _build_header_map()
+
+
+def _effective_header_map() -> dict[str, str]:
+    """Built-in header map plus any aliases from the mapping config."""
+    from upr.mapping_config import get_mapping  # local import to avoid a cycle
+
+    extra = get_mapping().column_aliases
+    if not extra:
+        return _HEADER_MAP
+    merged = dict(_HEADER_MAP)
+    for field, aliases in extra.items():
+        if field in ALL_INPUT_FIELDS:
+            for alias in aliases:
+                merged[_normalize_header(alias)] = field
+    return merged
 
 
 class ImportError_(ValueError):
@@ -149,13 +164,14 @@ def map_records(
     ``source`` is allowed to set; rows without a ``program_code`` are skipped.
     """
     allowed = fields_for_source(source)
+    header_map = _effective_header_map()
     programs: list[ProgramInputs] = []
     saw_code_column = False
 
     for i, raw in enumerate(records):
         record: dict = {}
         for key, value in raw.items():
-            field = _HEADER_MAP.get(_normalize_header(key))
+            field = header_map.get(_normalize_header(key))
             if not field or field not in allowed:
                 continue
             if field == "program_code":

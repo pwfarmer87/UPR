@@ -79,6 +79,7 @@ python -m upr report  --file programs.csv --ops-cost 58000000 \
                       --out review.html --excel review.xlsx
 python -m upr trends  --years 2024 2025 2026 --metric net_margin
 python -m upr forecast
+python -m upr scenario --tuition 0.05 --enrollment -0.10 --operations 0.05
 ```
 
 ## Importing data (before the APIs)
@@ -126,6 +127,49 @@ The **Trends & Forecast** tab (and `upr.trends` / `upr.forecast`):
   diverge: *"healthy but shrinking"* (profitable, enrollment falling) and
   *"improving"* (underwater, pipeline growing).
 
+## Scenario modeling
+
+The **Scenario** tab (and `upr.scenario` / `python -m upr scenario`) applies
+global what-if levers to the baseline and shows the margin impact live:
+tuition rate, enrollment, institutional aid (or a **target discount rate**),
+instruction/departmental cost, and the operations pool. Enrollment changes scale
+the activity that moves with students (credit hours, aid, fees, funnel); cost
+levers are modeled independently (faculty/department costs are sticky short-term).
+Nothing is persisted — it's a live comparison against the current baseline.
+
+## Saved history (snapshots)
+
+`upr.storage.SnapshotStore` (SQLite, stdlib) saves a computed review — institution
+totals plus every program's financials — so **trends come from real saved
+history** instead of a synthetic re-run. Save from the Trends tab; the store
+backs a by-year trend and a per-program trajectory. DB path: `UPR_DB_PATH`
+(default `data/upr.db`, git-ignored).
+
+## Authentication & roles
+
+Optional. If a user store exists (`config/users.yaml`, or `UPR_USERS_FILE`), the
+dashboard requires login and gates actions by role:
+
+| Role | Can |
+|------|-----|
+| `viewer`  | view dashboard, trends, reports |
+| `analyst` | + import data, run scenarios, save snapshots |
+| `admin`   | + manage mapping config / view users |
+
+Passwords are salted PBKDF2-HMAC-SHA256. With no user store the app runs **open**
+(single-team prototype). Add a user:
+
+```bash
+python -m upr.auth add pfarmer "Patrick Farmer" admin   # prints a YAML entry
+```
+
+## Mapping configuration (no-code remapping)
+
+`config/mapping.yaml` (or `UPR_MAPPING_FILE`) remaps source data without touching
+code — extra **column aliases** for the importer/Slate/Jenzabar, and NetSuite
+**GL account buckets** + **operations departments**. See
+`config/mapping.example.yaml`. Admins can view the active config in the Admin tab.
+
 ## The financial model (per program, per fiscal year)
 
 ```
@@ -162,9 +206,14 @@ src/upr/
   reporting.py         HTML + Excel report builders, by-college rollup
   trends.py            multi-year trend analysis (YoY, CAGR, trajectories)
   forecast.py          next-year enrollment/margin forecast from Slate funnel
+  scenario.py          what-if levers (tuition/enrollment/aid/cost) + compare
+  storage.py           SQLite snapshot store (saved history → trends)
+  auth.py              optional login + role-based capabilities (PBKDF2)
+  mapping_config.py    YAML remapping of columns / GL accounts (no-code)
   pipeline.py          pull/import → merge → compute
   sample_data.py       realistic mock institution
-  __main__.py          CLI: summary | template | report | trends | forecast
+  __main__.py          CLI: summary|template|report|trends|forecast|scenario
+config/                mapping.example.yaml + users.example.yaml
   connectors/
     base.py            Connector interface
     netsuite.py        NetSuite Financials adapter (auth-pending)

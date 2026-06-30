@@ -1,0 +1,28 @@
+# UPR mapping configuration — copy to config/mapping.yaml (or point
+# UPR_MAPPING_FILE at it) to remap source data WITHOUT editing code.
+
+# Extra header aliases for the importer and the Slate/Jenzabar connectors.
+# canonical_field: [accepted headers...] (matched case/space/punct-insensitively)
+column_aliases:
+  program_code: ["PROG_CD", "Major"]
+  student_credit_hours: ["SCH_TOTAL", "Credit Hrs"]
+  institutional_aid: ["Discount", "Unfunded Aid"]
+
+netsuite:
+  # GL account -> model field. Use `exact` for one account or `range: [lo, hi]`.
+  # sign: -1 for credit-normal (revenue), +1 for debit-normal (expense / aid).
+  account_buckets:
+    - { field: gross_tuition_revenue, exact: "4000", sign: -1 }
+    - { field: fees_revenue,          exact: "4100", sign: -1 }
+    - { field: other_revenue,         exact: "4500", sign: -1 }
+    - { field: institutional_aid,     exact: "4900", sign: 1 }
+    - { field: instruction_cost,      range: ["5000", "5099"], sign: 1 }
+    - { field: departmental_cost,     range: ["5100", "5499"], sign: 1 }
+  # Departments that are shared services (roll into the overhead pool, not a
+  # program's direct cost).
+  operations_departments:
+    - facilities
+    - information_technology
+    - library
+    - administration
+    - student_services

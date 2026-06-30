@@ -204,9 +204,18 @@ def cmd_ingest(args) -> int:
         course_df = load_course_enrollments(args.course_enrollments)
         subject_map = load_subject_map(args.subject_map)
 
+    registrations = dept_costs = None
+    if args.registrations:
+        from upr.adapters.registrations import load_registrations
+        registrations = load_registrations(args.registrations)
+    if args.department_costs:
+        from upr.adapters.cost import load_department_costs
+        dept_costs = load_department_costs(args.department_costs)
+
     programs = build_program_inputs(
         revenue, args.year, course_df=course_df, subject_to_program=subject_map,
-        program_names=names,
+        program_names=names, registrations_df=registrations,
+        department_costs=dept_costs,
     )
     out_df = to_import_dataframe(programs)
     out_df.to_csv(args.out, index=False)
@@ -266,6 +275,10 @@ def main(argv: list[str] | None = None) -> int:
                       help="CSV mapping course subject -> program_code (for SCH)")
     p_in.add_argument("--program-codes", dest="program_codes",
                       help="override the bundled program_code->name roster (CSV)")
+    p_in.add_argument("--registrations", dest="registrations",
+                      help="student course-registrations export (accurate SCH-by-major)")
+    p_in.add_argument("--department-costs", dest="department_costs",
+                      help="department/subject -> instruction cost CSV (GL or payroll)")
     p_in.add_argument("--out", required=True, help="output import CSV path")
     p_in.set_defaults(func=cmd_ingest)
 

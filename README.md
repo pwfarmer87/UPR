@@ -163,9 +163,30 @@ python -m upr ingest --net-revenue R.xlsx --course-enrollments C.xlsx \
 
 Each subject's SCH is credited to exactly one program (no double counting).
 Without a crosswalk, programs still carry headcount + revenue; allocate overhead
-**by headcount**. Instruction/department **cost** isn't in these academic
-exports — it comes from NetSuite GL or faculty payroll, keyed to the same major
-codes via `config/mapping.yaml`.
+**by headcount**.
+
+### Accurate SCH and cost by major (registrations)
+
+The crosswalk above is a coarse fallback. The accurate path uses a **student
+course-registrations** export (one row per student-course with the student's
+major). It links course activity to the student's program, so UPR can:
+
+- set each major's SCH to the credit hours its students **actually take**, and
+- allocate **department instruction cost** (from the NetSuite GL by department,
+  or faculty payroll) to majors by the SCH each consumes from each department —
+  correctly spreading gen-ed/service teaching (English, Math, University core)
+  across every major that takes it, instead of dumping it on the host
+  department's own major.
+
+```bash
+python -m upr ingest --net-revenue R.xlsx --registrations Registrations.xlsx \
+                     --department-costs dept_costs.csv --year 2024 --out programs.csv
+```
+
+`dept_costs.csv` is a simple `department/subject, instruction_cost` table you can
+export from the GL or build from faculty payroll. The allocation is
+`dept_cost × sch[major,dept] / total_sch[dept]`, summed over departments
+(`upr.adapters.cost`).
 
 **Department rollups.** The bundled roster also carries each program's
 **field of study** (department), so the by-program review rolls up into the

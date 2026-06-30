@@ -163,10 +163,18 @@ python -m upr ingest --net-revenue R.xlsx --course-enrollments C.xlsx \
 
 Each subject's SCH is credited to exactly one program (no double counting).
 Without a crosswalk, programs still carry headcount + revenue; allocate overhead
-**by headcount**. Duplicate major names (several codes named "Education") are
-disambiguated by code. Instruction/department **cost** isn't in these academic
+**by headcount**. Instruction/department **cost** isn't in these academic
 exports — it comes from NetSuite GL or faculty payroll, keyed to the same major
 codes via `config/mapping.yaml`.
+
+**Authoritative program names.** Programs are named from the institution's
+official `program_code → program_name` roster (bundled at
+`src/upr/adapters/program_codes.csv`), not the messy parsed text. Codes that
+share a name (e.g. several "Education" codes, or the same program offered in
+multiple delivery modes) are disambiguated by code — `Elementary Education
+(EELM)` vs `Elementary Education (UTEL)`. Codes absent from the roster (e.g.
+non-degree) keep their parsed name. Override the roster with
+`ingest --program-codes my_roster.csv`.
 
 > Privacy: the net-revenue export is student-level PII. UPR processes it
 > in-memory to aggregate; nothing student-level is written except the

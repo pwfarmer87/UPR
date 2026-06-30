@@ -190,11 +190,14 @@ def cmd_ingest(args) -> int:
         build_program_inputs,
         load_course_enrollments,
         load_net_revenue,
+        load_program_names,
         to_import_dataframe,
     )
     from upr.adapters.crosswalk import load_subject_map
 
     revenue = load_net_revenue(args.net_revenue)
+    names = load_program_names(args.program_codes) if args.program_codes \
+        else load_program_names()
     course_df = None
     subject_map = None
     if args.course_enrollments and args.subject_map:
@@ -202,7 +205,8 @@ def cmd_ingest(args) -> int:
         subject_map = load_subject_map(args.subject_map)
 
     programs = build_program_inputs(
-        revenue, args.year, course_df=course_df, subject_to_program=subject_map
+        revenue, args.year, course_df=course_df, subject_to_program=subject_map,
+        program_names=names,
     )
     out_df = to_import_dataframe(programs)
     out_df.to_csv(args.out, index=False)
@@ -260,6 +264,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="Course enrollments export (xlsx), for SCH")
     p_in.add_argument("--subject-map", dest="subject_map",
                       help="CSV mapping course subject -> program_code (for SCH)")
+    p_in.add_argument("--program-codes", dest="program_codes",
+                      help="override the bundled program_code->name roster (CSV)")
     p_in.add_argument("--out", required=True, help="output import CSV path")
     p_in.set_defaults(func=cmd_ingest)
 

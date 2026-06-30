@@ -17,6 +17,7 @@ faculty as department-side context bridged by an explicit crosswalk.
 from upr.adapters.assemble import build_program_inputs, to_import_dataframe
 from upr.adapters.course_enrollments import load_course_enrollments, sch_by_subject
 from upr.adapters.net_revenue import load_net_revenue, revenue_by_program
+from upr.adapters.programs import load_program_names
 
 __all__ = [
     "load_net_revenue",
@@ -25,4 +26,5 @@ __all__ = [
     "sch_by_subject",
     "build_program_inputs",
     "to_import_dataframe",
+    "load_program_names",
 ]

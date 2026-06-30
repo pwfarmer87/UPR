@@ -73,8 +73,16 @@ def load_net_revenue(source, *, header: int = 2) -> pd.DataFrame:
     return out
 
 
-def revenue_by_program(df: pd.DataFrame, year: int | None = None) -> pd.DataFrame:
-    """Aggregate the tidy frame to one row per major (optionally one year)."""
+def revenue_by_program(
+    df: pd.DataFrame,
+    year: int | None = None,
+    program_names: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Aggregate the tidy frame to one row per major (optionally one year).
+
+    ``program_names`` (a code→name roster) authoritatively names each program;
+    codes not in the roster keep their parsed name.
+    """
     if year is not None:
         df = df[df["fiscal_year"] == year]
     if df.empty:
@@ -100,16 +108,23 @@ def revenue_by_program(df: pd.DataFrame, year: int | None = None) -> pd.DataFram
             df.groupby("major_code")[meta_cols].agg(_mode).reset_index()
         )
         grouped = grouped.merge(meta, on="major_code", how="left")
-    if "major_name" in grouped.columns:
-        grouped["major_name"] = grouped["major_name"].map(_clean_major_name)
-        # Several major codes can share a cleaned name (e.g. 6 "Education" codes);
-        # disambiguate by appending the code so display names stay unique.
-        counts = grouped["major_name"].value_counts()
-        dup = set(counts[counts > 1].index)
+    if "major_name" not in grouped.columns:
+        grouped["major_name"] = ""
+    grouped["major_name"] = grouped["major_name"].map(_clean_major_name)
+    # Prefer the official roster name per code; fall back to the parsed name.
+    if program_names:
         grouped["major_name"] = [
-            f"{name} ({code})" if name in dup else name
-            for name, code in zip(grouped["major_name"], grouped["major_code"])
+            program_names.get(str(code)) or parsed
+            for code, parsed in zip(grouped["major_code"], grouped["major_name"])
         ]
+    # Several codes can share a name (e.g. 4 "Education" codes); disambiguate by
+    # appending the code so display names stay unique.
+    counts = grouped["major_name"].value_counts()
+    dup = set(counts[counts > 1].index)
+    grouped["major_name"] = [
+        f"{name} ({code})" if name in dup else name
+        for name, code in zip(grouped["major_name"], grouped["major_code"])
+    ]
 
     grouped = grouped.rename(columns={
         "gross": "gross_tuition_revenue",

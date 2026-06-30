@@ -31,9 +31,17 @@ def build_program_inputs(
     *,
     course_df: pd.DataFrame | None = None,
     subject_to_program: dict[str, str] | None = None,
+    program_names: dict[str, str] | None = None,
 ) -> list[ProgramInputs]:
-    """Build ProgramInputs (by major) for ``year`` from adapter outputs."""
-    rev = revenue_by_program(revenue_df, year)
+    """Build ProgramInputs (by major) for ``year`` from adapter outputs.
+
+    ``program_names`` defaults to the bundled official roster; pass a dict (or an
+    empty dict to disable) to override naming.
+    """
+    if program_names is None:
+        from upr.adapters.programs import load_program_names
+        program_names = load_program_names()
+    rev = revenue_by_program(revenue_df, year, program_names)
     if rev.empty:
         return []
 

@@ -62,7 +62,9 @@ def build_crosswalk_template(
 
 def majors_reference(revenue_df: pd.DataFrame, year: int) -> pd.DataFrame:
     """Reference list of valid program codes (majors) to map subjects to."""
-    rev = revenue_by_program(revenue_df, year)
+    from upr.adapters.programs import load_program_names
+
+    rev = revenue_by_program(revenue_df, year, load_program_names())
     if rev.empty:
         return pd.DataFrame(columns=["program_code", "program_name", "college"])
     cols = [c for c in ("program_code", "program_name", "college") if c in rev.columns]

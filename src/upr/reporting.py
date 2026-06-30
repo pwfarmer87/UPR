@@ -64,11 +64,13 @@ def build_excel_report(
     *,
     multiyear: MultiYearReview | None = None,
     assumptions: ForecastAssumptions | None = None,
+    faculty=None,
 ) -> bytes:
     """Multi-sheet workbook.
 
     Always: Summary, Programs, Underwater, By College, Forecast.
     With ``multiyear``: an extra Trend-by-year sheet.
+    With ``faculty`` (a rollup DataFrame): an extra Faculty sheet.
     """
     df = result.to_frame()
     totals = result.totals()
@@ -109,6 +111,8 @@ def build_excel_report(
             yoy_summary(multiyear, "net_margin").to_excel(
                 writer, sheet_name="Net margin movers", index=False
             )
+        if faculty is not None and not faculty.empty:
+            faculty.to_excel(writer, sheet_name="Faculty", index=False)
         for sheet in writer.sheets.values():
             for column_cells in sheet.columns:
                 width = max(len(str(c.value or "")) for c in column_cells) + 2

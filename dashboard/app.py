@@ -2,7 +2,7 @@
 
 Run:  streamlit run dashboard/app.py
 
-Tabs: Import · Dashboard · Trends & Forecast · Scenario · Reports (+ Admin).
+Tabs: Import · Dashboard · Trends & Forecast · Faculty · Scenario · Reports (+ Admin).
 Optional login + roles gate the action tabs when a user store is configured.
 """
 
@@ -19,6 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from upr import auth  # noqa: E402
 from upr.config import Settings  # noqa: E402
+from upr.faculty import (  # noqa: E402
+    aggregate_faculty,
+    apply_faculty_to_inputs,
+    faculty_template_csv,
+    read_faculty,
+    rollup_frame,
+)
 from upr.forecast import ForecastAssumptions, forecast_frame, forecast_totals  # noqa: E402
 from upr.importing import ImportError_, read_programs, template_csv  # noqa: E402
 from upr.mapping_config import get_mapping  # noqa: E402
@@ -29,6 +36,7 @@ from upr.reporting import (  # noqa: E402
     build_html_report,
     by_college,
 )
+from upr.sample_data import sample_faculty  # noqa: E402
 from upr.scenario import Scenario, compare, compare_totals, run_scenario  # noqa: E402
 from upr.storage import SnapshotStore  # noqa: E402
 from upr.trends import (  # noqa: E402
@@ -118,27 +126,48 @@ def _settings(data_source: str, operations_cost: float | None) -> Settings:
     return s
 
 
+def _faculty_payroll():
+    """Uploaded faculty payroll if present, else the sample roster."""
+    return st.session_state.get("faculty_payroll") or sample_faculty(fiscal_year)
+
+
 def _current_review():
-    """Return a ReviewResult from imported data if present, else sample data."""
+    """Return a ReviewResult from imported data if present, else sample data.
+
+    When 'use payroll cost' is on, instruction cost & faculty FTE are rebuilt
+    from the faculty payroll before computing.
+    """
     imported = st.session_state.get("imported_inputs")
+    use_payroll = st.session_state.get("use_payroll_cost", False)
     if imported:
         inst = InstitutionInputs(
             fiscal_year=fiscal_year, university_operations_cost=float(ops_cost)
         )
+        inputs = imported
+        sources = list(st.session_state.get("imported_sources", ["import"]))
+        if use_payroll:
+            inputs = apply_faculty_to_inputs(inputs, _faculty_payroll())
+            sources.append("faculty")
+        return compute_review(inputs, inst, _settings("file", float(ops_cost)),
+                              sources_used=sources)
+
+    base_result = run_review(_settings("mock", None))
+    if use_payroll:
+        inputs = apply_faculty_to_inputs(base_result.inputs, _faculty_payroll())
         return compute_review(
-            imported, inst, _settings("file", float(ops_cost)),
-            sources_used=st.session_state.get("imported_sources", ["import"]),
+            inputs, base_result.institution, _settings("mock", None),
+            sources_used=[*base_result.sources_used, "faculty"],
         )
-    return run_review(_settings("mock", None))
+    return base_result
 
 
 _tab_labels = ["📥 Import", "📊 Dashboard", "📈 Trends & Forecast",
-               "🔮 Scenario", "📄 Reports"]
+               "👤 Faculty", "🔮 Scenario", "📄 Reports"]
 if can("admin"):
     _tab_labels.append("⚙️ Admin")
 _tabs = st.tabs(_tab_labels)
-tab_import, tab_dash, tab_trends, tab_scenario, tab_reports = _tabs[:5]
-tab_admin = _tabs[5] if can("admin") else None
+tab_import, tab_dash, tab_trends, tab_faculty, tab_scenario, tab_reports = _tabs[:6]
+tab_admin = _tabs[6] if can("admin") else None
 
 # --------------------------------------------------------------------------- #
 # Import tab
@@ -209,6 +238,39 @@ with tab_import:
             st.rerun()
     else:
         st.caption("No file loaded — Dashboard and Reports show **sample data**.")
+
+    st.divider()
+    st.subheader("Faculty payroll (optional)")
+    st.write(
+        "Upload per-faculty payroll to rebuild **instruction cost** and "
+        "**faculty FTE** from real compensation (one row per faculty-program "
+        "assignment; joint appointments split by `effort`). See the **Faculty** tab."
+    )
+    st.download_button(
+        "faculty_template.csv", faculty_template_csv().encode("utf-8"),
+        file_name="upr_faculty_template.csv", mime="text/csv", key="tmpl_faculty",
+    )
+    if can("import"):
+        fac_up = st.file_uploader(
+            "Faculty payroll (CSV or Excel)", type=["csv", "xlsx", "xls"],
+            key="up_faculty",
+        )
+        if fac_up is not None:
+            try:
+                payroll = read_faculty(fac_up.getvalue(), filename=fac_up.name)
+                st.session_state["faculty_payroll"] = payroll
+                st.success(f"Loaded payroll for {len(payroll)} faculty assignments.")
+            except ImportError_ as exc:
+                st.error(f"Faculty import failed: {exc}")
+        if st.session_state.get("faculty_payroll") and st.button("Clear faculty payroll"):
+            st.session_state.pop("faculty_payroll", None)
+            st.rerun()
+    st.checkbox(
+        "Use payroll-derived instruction cost in the model",
+        key="use_payroll_cost",
+        help="Overrides each program's instruction cost & faculty FTE with the "
+        "faculty payroll roll-up (uploaded payroll, or the sample roster).",
+    )
 
 # Build the review once for the remaining tabs.
 result = _current_review()
@@ -445,6 +507,76 @@ with tab_trends:
         st.caption("No snapshots saved yet.")
 
 # --------------------------------------------------------------------------- #
+# Faculty tab
+# --------------------------------------------------------------------------- #
+with tab_faculty:
+    st.title("Faculty & payroll")
+    payroll = _faculty_payroll()
+    using_uploaded = bool(st.session_state.get("faculty_payroll"))
+    st.caption(
+        ("Uploaded payroll" if using_uploaded else "Sample faculty roster")
+        + f" · {len(payroll)} assignments · upload your own in the Import tab."
+    )
+    if st.session_state.get("use_payroll_cost"):
+        st.success("Payroll-derived instruction cost is **on** (driving the model).")
+    else:
+        st.info("Payroll view is informational. Enable *Use payroll-derived "
+                "instruction cost* in the Import tab to drive the model with it.")
+
+    rollups = aggregate_faculty(payroll)
+    roll_df = rollup_frame(rollups)
+
+    total_fac = int(sum(r.faculty_headcount for r in rollups))
+    total_cost = sum(r.instruction_cost for r in rollups)
+    total_fte = sum(r.faculty_fte for r in rollups)
+    adjuncts = int(sum(r.adjunct_headcount for r in rollups))
+    f1, f2, f3, f4 = st.columns(4)
+    f1.metric("Faculty (assignments)", f"{total_fac:,}")
+    f2.metric("Faculty FTE", f"{total_fte:,.1f}")
+    f3.metric("Instruction cost", money(total_cost))
+    f4.metric("Cost / FTE", money(total_cost / total_fte) if total_fte else "—")
+
+    fc1, fc2 = st.columns([3, 2])
+    with fc1:
+        st.subheader("Cost per faculty FTE by program")
+        chart = roll_df.sort_values("cost_per_fte", ascending=False)
+        bar = px.bar(
+            chart, x="cost_per_fte", y="program_code", orientation="h",
+            color="benefits_rate",
+            labels={"cost_per_fte": "Cost per FTE ($)", "program_code": "",
+                    "benefits_rate": "Benefits rate"},
+        )
+        bar.update_layout(height=460, margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(bar, use_container_width=True)
+    with fc2:
+        st.subheader("Adjunct mix")
+        mix = roll_df[["program_code", "faculty_headcount", "adjunct_headcount"]].copy()
+        mix["full_time"] = mix["faculty_headcount"] - mix["adjunct_headcount"]
+        pie = px.bar(
+            mix.sort_values("faculty_headcount", ascending=False),
+            x="program_code", y=["full_time", "adjunct_headcount"],
+            labels={"value": "Faculty", "program_code": "", "variable": ""},
+        )
+        pie.update_layout(height=460, margin=dict(l=0, r=0, t=10, b=0),
+                          legend=dict(orientation="h"))
+        st.plotly_chart(pie, use_container_width=True)
+
+    st.subheader("Per-program faculty roll-up")
+    st.dataframe(
+        roll_df.style.format({
+            "faculty_fte": "{:,.1f}", "instruction_cost": "${:,.0f}",
+            "total_salary": "${:,.0f}", "total_benefits": "${:,.0f}",
+            "benefits_rate": "{:.1%}", "cost_per_fte": "${:,.0f}",
+            "avg_compensation": "${:,.0f}",
+        }),
+        use_container_width=True, hide_index=True,
+    )
+    st.download_button(
+        "⬇️ Faculty roll-up (CSV)", roll_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"faculty_rollup_{fiscal_year}.csv", mime="text/csv",
+    )
+
+# --------------------------------------------------------------------------- #
 # Scenario tab
 # --------------------------------------------------------------------------- #
 with tab_scenario:
@@ -533,6 +665,13 @@ with tab_reports:
         else None
     )
     report_html = build_html_report(result, multiyear=report_myr)
+    include_faculty = st.checkbox(
+        "Include a Faculty sheet in the Excel workbook",
+        value=bool(st.session_state.get("faculty_payroll")),
+    )
+    report_faculty = (
+        rollup_frame(aggregate_faculty(_faculty_payroll())) if include_faculty else None
+    )
 
     c1, c2, c3 = st.columns(3)
     c1.download_button(
@@ -540,7 +679,8 @@ with tab_reports:
         file_name=f"{fname}.html", mime="text/html",
     )
     c2.download_button(
-        "⬇️ Excel workbook", build_excel_report(result, multiyear=report_myr),
+        "⬇️ Excel workbook",
+        build_excel_report(result, multiyear=report_myr, faculty=report_faculty),
         file_name=f"{fname}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

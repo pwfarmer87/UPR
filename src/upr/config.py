@@ -77,6 +77,9 @@ class Settings:
     jenzabar_file: str | None = None
     netsuite_file: str | None = None
     slate_file: str | None = None
+    # Optional faculty payroll file: when set, instruction cost & faculty FTE are
+    # rebuilt from per-faculty compensation.
+    faculty_file: str | None = None
     netsuite: NetSuiteConfig = field(default_factory=NetSuiteConfig)
     slate: SlateConfig = field(default_factory=SlateConfig)
     jenzabar: JenzabarConfig = field(default_factory=JenzabarConfig)
@@ -93,6 +96,7 @@ class Settings:
             jenzabar_file=os.getenv("UPR_JENZABAR_FILE") or None,
             netsuite_file=os.getenv("UPR_NETSUITE_FILE") or None,
             slate_file=os.getenv("UPR_SLATE_FILE") or None,
+            faculty_file=os.getenv("UPR_FACULTY_FILE") or None,
             netsuite=NetSuiteConfig(
                 account_id=os.getenv("NETSUITE_ACCOUNT_ID"),
                 consumer_key=os.getenv("NETSUITE_CONSUMER_KEY"),

@@ -141,6 +141,14 @@ def run_review(settings: Settings | None = None) -> ReviewResult:
         )
 
     inputs = sorted(records.values(), key=lambda p: p.program_code)
+
+    if settings.faculty_file:  # rebuild instruction cost from per-faculty payroll
+        from upr.faculty import apply_faculty_to_inputs, read_faculty
+
+        payroll = read_faculty(settings.faculty_file)
+        inputs = apply_faculty_to_inputs(inputs, payroll)
+        sources_used = [*sources_used, "faculty"]
+
     financials = compute_portfolio(inputs, institution, settings.allocation_driver)
     return ReviewResult(
         fy, institution, inputs, financials, sources_used, settings.allocation_driver

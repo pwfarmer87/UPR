@@ -156,6 +156,18 @@ The **Trends & Forecast** tab (and `upr.trends` / `upr.forecast`):
   diverge: *"healthy but shrinking"* (profitable, enrollment falling) and
   *"improving"* (underwater, pipeline growing).
 
+## Faculty payroll
+
+`upr.faculty` rebuilds **instruction cost** and **faculty FTE** from per-faculty
+compensation instead of trusting a single GL lump — making instruction cost
+auditable and surfacing faculty metrics (headcount, FTE, **cost per FTE**,
+benefits load, adjunct mix). Load a payroll file (one row per faculty-program
+assignment; joint appointments split by `effort`), see the **Faculty** tab, and
+optionally toggle *"Use payroll-derived instruction cost"* to drive the model
+with it. Source: a NetSuite SuitePeople / HR-payroll export or any payroll
+spreadsheet; headers are matched leniently. Set `UPR_FACULTY_FILE` to apply it
+on the CLI/env. Templates and a filled sample are in `data/`.
+
 ## Scenario modeling
 
 The **Scenario** tab (and `upr.scenario` / `python -m upr scenario`) applies
@@ -233,6 +245,7 @@ src/upr/
   sources.py           which fields each source system owns (merge/import)
   importing.py         CSV/Excel import + templates (the pre-API path)
   reporting.py         HTML + Excel report builders, by-college rollup
+  faculty.py           faculty payroll import + roll-up (auditable instruction cost)
   trends.py            multi-year trend analysis (YoY, CAGR, trajectories)
   forecast.py          next-year enrollment/margin forecast from Slate funnel
   scenario.py          what-if levers (tuition/enrollment/aid/cost) + compare

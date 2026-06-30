@@ -101,3 +101,32 @@ def sample_institution(fiscal_year: int = 2025) -> InstitutionInputs:
         name="Sample University",
         university_operations_cost=round(_OPERATIONS_POOL * _growth(fiscal_year), 2),
     )
+
+
+_BENEFITS_RATE = 0.28  # benefits as a share of total compensation
+
+
+def sample_faculty(fiscal_year: int = 2025):
+    """Per-faculty payroll that rolls up close to each program's instruction
+    cost, so the payroll-derived view reconciles with the GL view."""
+    from upr.faculty import FacultyPayroll
+
+    faculty = []
+    for p in sample_programs(fiscal_year):
+        n = max(1, round(p.faculty_fte))
+        comp_per_fte = p.instruction_cost / n  # total comp per person
+        for i in range(1, n + 1):
+            adjunct = i % 5 == 0  # every 5th is an adjunct at half load
+            fte = 0.5 if adjunct else 1.0
+            comp = comp_per_fte * (0.6 if adjunct else 1.0)
+            faculty.append(FacultyPayroll(
+                faculty_id=f"{p.program_code}-{i:02d}",
+                name=f"{p.program_name} Faculty {i}",
+                program_code=p.program_code,
+                appointment="Adjunct" if adjunct else "Full-time",
+                fte=fte,
+                base_salary=round(comp * (1 - _BENEFITS_RATE), 2),
+                benefits=round(comp * _BENEFITS_RATE, 2),
+                effort=1.0,
+            ))
+    return faculty

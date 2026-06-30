@@ -26,8 +26,16 @@ model and dashboard are usable today. Each live connector is a pluggable adapter
   HMAC-SHA256 signing, pagination, and a tested GL→program mapping). Needs the
   connector authorized + `NETSUITE_*` credentials; until then it falls back to
   mock data. See "NetSuite live integration" below.
-- **Slate** — integrates via Slate web services (query API); adapter stubbed.
-- **Jenzabar** — integrates via Jenzabar API / direct SQL; adapter stubbed.
+- **Slate** — **implemented**: reads a published Slate query (JSON web service)
+  with a query key and maps the funnel through the shared importer. Set
+  `SLATE_BASE_URL` + `SLATE_QUERY_KEY`.
+- **Jenzabar** — **implemented**: REST API (`JENZABAR_BASE_URL` +
+  `JENZABAR_API_KEY`) or direct read-only SQL (`JENZABAR_DB_DSN`, via ODBC).
+
+Each source's response is normalized by the **same** importer used for files
+(`upr.importing.map_records`), so header aliases and type coercion are identical
+across files and APIs. Per-source field ownership (`upr.sources`) keeps a
+NetSuite feed from overwriting enrollment, etc., when results merge.
 
 Set credentials in `.env` (see `.env.example`) and flip `UPR_DATA_SOURCE=live`.
 
@@ -92,10 +100,19 @@ correctly. Blank templates and a filled example live in `data/`
 
 From the **Reports** tab or `python -m upr report`:
 
-- **HTML report** — KPIs, an *underwater-after-overhead* section, a by-college
-  rollup, and the full program table. Standalone and **prints cleanly to PDF**.
-- **Excel workbook** — `Summary`, `Programs`, `Underwater`, `By College` sheets.
+- **HTML report** — KPIs, *underwater-after-overhead*, a **next-year forecast**
+  section (projected enrollment + watch list), an optional **multi-year trend**
+  section (institution-by-year + biggest movers with CAGR), a by-college rollup,
+  and the full program table. Standalone and **prints cleanly to PDF**.
+- **Excel workbook** — `Summary`, `Programs`, `Underwater`, `By College`,
+  `Forecast`, and (with `--years`) `Trend by year` + `Net margin movers` sheets.
 - **CSV** — the computed program table.
+
+Add the trend section from the CLI with `--years`:
+
+```bash
+python -m upr report --years 2024 2025 2026 --out review.html --excel review.xlsx
+```
 
 ## Multi-year trends & forecast
 

@@ -15,7 +15,9 @@ import io
 
 import pandas as pd
 
+from upr.forecast import ForecastAssumptions, forecast_frame, forecast_totals
 from upr.pipeline import ReviewResult
+from upr.trends import MultiYearReview, institution_trend, yoy_summary
 
 _REPORT_COLUMNS = [
     "program_code", "program_name", "college", "degree_level",
@@ -57,8 +59,17 @@ def by_college(result: ReviewResult) -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 # Excel
 # --------------------------------------------------------------------------- #
-def build_excel_report(result: ReviewResult) -> bytes:
-    """Multi-sheet workbook: Summary, Programs, Underwater, By College."""
+def build_excel_report(
+    result: ReviewResult,
+    *,
+    multiyear: MultiYearReview | None = None,
+    assumptions: ForecastAssumptions | None = None,
+) -> bytes:
+    """Multi-sheet workbook.
+
+    Always: Summary, Programs, Underwater, By College, Forecast.
+    With ``multiyear``: an extra Trend-by-year sheet.
+    """
     df = result.to_frame()
     totals = result.totals()
     summary = pd.DataFrame(
@@ -82,6 +93,7 @@ def build_excel_report(result: ReviewResult) -> bytes:
     programs = df[_REPORT_COLUMNS].sort_values("net_margin", ascending=False)
     underwater = programs[programs["net_margin"] < 0]
     college = by_college(result)
+    forecast = forecast_frame(result, assumptions)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -89,6 +101,14 @@ def build_excel_report(result: ReviewResult) -> bytes:
         programs.to_excel(writer, sheet_name="Programs", index=False)
         underwater.to_excel(writer, sheet_name="Underwater", index=False)
         college.to_excel(writer, sheet_name="By College", index=False)
+        forecast.to_excel(writer, sheet_name="Forecast", index=False)
+        if multiyear is not None and len(multiyear.years) > 1:
+            institution_trend(multiyear).to_excel(
+                writer, sheet_name="Trend by year", index=False
+            )
+            yoy_summary(multiyear, "net_margin").to_excel(
+                writer, sheet_name="Net margin movers", index=False
+            )
         for sheet in writer.sheets.values():
             for column_cells in sheet.columns:
                 width = max(len(str(c.value or "")) for c in column_cells) + 2
@@ -153,7 +173,95 @@ _TABLE_HEAD = (
 )
 
 
-def build_html_report(result: ReviewResult, *, title: str = "Program Financial Review") -> str:
+def _forecast_section_html(
+    result: ReviewResult, assumptions: ForecastAssumptions | None
+) -> str:
+    fc = forecast_frame(result, assumptions)
+    t = forecast_totals(result, assumptions)
+    watch = fc[fc["watch_flag"] != "Stable"]
+    chg_cls = "pos" if t["projected_change"] >= 0 else "neg"
+    cards = (
+        f'<div class="kpi"><div class="label">Current majors</div>'
+        f'<div class="value">{t["current_majors"]:,}</div></div>'
+        f'<div class="kpi"><div class="label">Projected majors</div>'
+        f'<div class="value {chg_cls}">{t["projected_majors"]:,} '
+        f'({t["projected_pct_change"] * 100:+.1f}%)</div></div>'
+        f'<div class="kpi"><div class="label">Projected revenue</div>'
+        f'<div class="value">{_money(t["projected_revenue"])}</div></div>'
+        f'<div class="kpi"><div class="label">Programs to watch</div>'
+        f'<div class="value">{t["programs_shrinking"] + t["programs_improving"]}'
+        f'</div></div>'
+    )
+    watch_table = ""
+    if not watch.empty:
+        rows = "".join(
+            f"<tr><td>{html.escape(str(r['program_name']))}</td>"
+            f"<td>{html.escape(str(r['watch_flag']))}</td>"
+            f"<td>{int(r['enrolled_majors'])}</td>"
+            f"<td>{int(r['projected_majors'])}</td>"
+            f"<td class=\"{'neg' if r['projected_pct_change'] < 0 else 'pos'}\">"
+            f"{r['projected_pct_change'] * 100:+.1f}%</td>"
+            f"<td>{_pct(r['yield_rate'])}</td>"
+            f"<td class=\"{'neg' if r['net_margin'] < 0 else 'pos'}\">"
+            f"{_money(r['net_margin'])}</td></tr>"
+            for _, r in watch.iterrows()
+        )
+        watch_table = (
+            "<p class='note'>Economics and pipeline diverging — watch these.</p>"
+            "<table><thead><tr><th>Program</th><th>Flag</th><th>Majors</th>"
+            "<th>Projected</th><th>Change</th><th>Yield</th><th>Net margin</th>"
+            f"</tr></thead><tbody>{rows}</tbody></table>"
+        )
+    return (
+        "<h2>Next-year forecast (Slate pipeline)</h2>"
+        f'<div class="kpis">{cards}</div>{watch_table}'
+    )
+
+
+def _trends_section_html(multiyear: MultiYearReview) -> str:
+    if multiyear is None or len(multiyear.years) <= 1:
+        return ""
+    inst = institution_trend(multiyear)
+    year_rows = "".join(
+        f"<tr><td>FY{int(r['fiscal_year'])}</td>"
+        f"<td>{_money(r['total_revenue'])}</td>"
+        f"<td>{_money(r['total_cost'])}</td>"
+        f"<td class=\"{'pos' if r['net_margin'] >= 0 else 'neg'}\">"
+        f"{_money(r['net_margin'])}</td>"
+        f"<td>{_pct(r['net_margin_ratio'])}</td></tr>"
+        for _, r in inst.iterrows()
+    )
+    movers = yoy_summary(multiyear, "net_margin").head(8)
+    cols = list(movers.columns)
+    first_col, last_col = cols[2], cols[3]
+    mover_rows = "".join(
+        f"<tr><td>{html.escape(str(r['program_name']))}</td>"
+        f"<td>{_money(r[first_col])}</td><td>{_money(r[last_col])}</td>"
+        f"<td class=\"{'pos' if r['change'] >= 0 else 'neg'}\">{_money(r['change'])}</td>"
+        f"<td>{r['cagr'] * 100:+.1f}%</td></tr>"
+        for _, r in movers.iterrows()
+    )
+    yrs = f"FY{min(multiyear.years)}–FY{max(multiyear.years)}"
+    return (
+        "<h2>Multi-year trend</h2>"
+        "<table><thead><tr><th>Year</th><th>Revenue</th><th>Total cost</th>"
+        "<th>Net margin</th><th>Margin %</th></tr></thead>"
+        f"<tbody>{year_rows}</tbody></table>"
+        f"<p class='note'>Biggest net-margin movers, {yrs}</p>"
+        "<table><thead><tr><th>Program</th><th>First</th><th>Last</th>"
+        "<th>Change</th><th>CAGR</th></tr></thead>"
+        f"<tbody>{mover_rows}</tbody></table>"
+    )
+
+
+def build_html_report(
+    result: ReviewResult,
+    *,
+    title: str = "Program Financial Review",
+    multiyear: MultiYearReview | None = None,
+    assumptions: ForecastAssumptions | None = None,
+    include_forecast: bool = True,
+) -> str:
     df = result.to_frame().sort_values("net_margin", ascending=False)
     totals = result.totals()
     underwater = df[df["net_margin"] < 0]
@@ -205,6 +313,8 @@ def build_html_report(result: ReviewResult, *, title: str = "Program Financial R
 &middot; source: {html.escape(', '.join(result.sources_used))}</p>
 <div class="kpis">{kpis}</div>
 {underwater_section}
+{_trends_section_html(multiyear)}
+{_forecast_section_html(result, assumptions) if include_forecast else ""}
 <h2>By college</h2>
 <table><thead><tr><th>College</th><th>Programs</th><th>Majors</th><th>Revenue</th>
 <th>Total cost</th><th>Net margin</th><th>Margin %</th></tr></thead>

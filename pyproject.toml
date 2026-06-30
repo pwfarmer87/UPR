@@ -16,7 +16,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dashboard = ["streamlit>=1.32", "plotly>=5.20"]
-dev = ["pytest>=8.0"]
+reporting = ["openpyxl>=3.1"]
+jenzabar-sql = ["pyodbc>=5.0"]  # only for the Jenzabar direct-SQL path
+dev = ["pytest>=8.0", "openpyxl>=3.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

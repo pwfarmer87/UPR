@@ -124,42 +124,57 @@ def read_programs(
     df = _read_dataframe(source_obj, filename)
     if df.empty:
         raise ImportError_("File contains no rows.")
+    return map_records(df.to_dict("records"), source=source)
 
+
+def _map_value(field: str, raw):
+    """Coerce one raw cell/JSON value for ``field`` (None if empty)."""
+    if field in _INT_FIELDS:
+        return _coerce_number(raw, as_int=True)
+    if field in _FLOAT_FIELDS:
+        return _coerce_number(raw, as_int=False)
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def map_records(
+    records: list[dict], source: str = "all"
+) -> list[ProgramInputs]:
+    """Map already-parsed dict records (CSV rows or API/JSON/SQL rows) to inputs.
+
+    Shared by the file importer and the Slate/Jenzabar connectors so every entry
+    path normalizes headers and coerces types identically. Keeps only the fields
+    ``source`` is allowed to set; rows without a ``program_code`` are skipped.
+    """
     allowed = fields_for_source(source)
-    # Map columns -> canonical fields, dropping anything unrecognized.
-    col_to_field: dict[str, str] = {}
-    for col in df.columns:
-        field = _HEADER_MAP.get(_normalize_header(col))
-        if field and field in allowed:
-            col_to_field[col] = field
-
-    if "program_code" not in col_to_field.values():
-        raise ImportError_(
-            "Required 'program_code' column not found. Recognized columns: "
-            f"{sorted(set(col_to_field.values())) or 'none'}."
-        )
-
     programs: list[ProgramInputs] = []
-    for i, row in df.iterrows():
+    saw_code_column = False
+
+    for i, raw in enumerate(records):
         record: dict = {}
-        for col, field in col_to_field.items():
-            raw = row[col]
-            if field in _INT_FIELDS:
-                val = _coerce_number(raw, as_int=True)
-            elif field in _FLOAT_FIELDS:
-                val = _coerce_number(raw, as_int=False)
-            else:
-                val = None if pd.isna(raw) else str(raw).strip()
+        for key, value in raw.items():
+            field = _HEADER_MAP.get(_normalize_header(key))
+            if not field or field not in allowed:
+                continue
+            if field == "program_code":
+                saw_code_column = True
+            val = _map_value(field, value)
             if val is not None:
                 record[field] = val
         code = record.get("program_code")
         if not code:
-            continue  # skip blank rows
+            continue  # skip blank/aggregate rows without a program key
         try:
             programs.append(ProgramInputs(**record))
         except Exception as exc:  # noqa: BLE001
             raise ImportError_(f"Row {i + 2}: {exc}") from exc
 
+    if not saw_code_column:
+        raise ImportError_(
+            "Required 'program_code' column not found in the data."
+        )
     if not programs:
         raise ImportError_("No valid program rows found.")
     return programs

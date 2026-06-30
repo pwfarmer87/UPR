@@ -365,13 +365,27 @@ with tab_reports:
     )
     fname = f"program_financial_review_{fiscal_year}"
 
+    include_trend = st.checkbox(
+        "Include multi-year trend section", value=not bool(
+            st.session_state.get("imported_inputs")
+        ),
+        help="Adds institution-by-year and biggest-movers tables (sample data "
+        "spans FY2024–FY2026).",
+    )
+    report_myr = (
+        run_multiyear([2024, 2025, 2026], _settings("mock", None))
+        if include_trend and not st.session_state.get("imported_inputs")
+        else None
+    )
+    report_html = build_html_report(result, multiyear=report_myr)
+
     c1, c2, c3 = st.columns(3)
     c1.download_button(
-        "⬇️ HTML report", build_html_report(result).encode("utf-8"),
+        "⬇️ HTML report", report_html.encode("utf-8"),
         file_name=f"{fname}.html", mime="text/html",
     )
     c2.download_button(
-        "⬇️ Excel workbook", build_excel_report(result),
+        "⬇️ Excel workbook", build_excel_report(result, multiyear=report_myr),
         file_name=f"{fname}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
@@ -382,4 +396,4 @@ with tab_reports:
 
     st.divider()
     st.subheader("Report preview")
-    st.components.v1.html(build_html_report(result), height=600, scrolling=True)
+    st.components.v1.html(report_html, height=600, scrolling=True)

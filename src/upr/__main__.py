@@ -75,14 +75,16 @@ def cmd_template(args) -> int:
 
 
 def cmd_report(args) -> int:
-    result = run_review(_settings_from_args(args))
-    html = build_html_report(result)
+    settings = _settings_from_args(args)
+    result = run_review(settings)
+    multiyear = run_multiyear(args.years, settings) if args.years else None
+    html = build_html_report(result, multiyear=multiyear)
     with open(args.out, "w") as fh:
         fh.write(html)
     print(f"Wrote HTML report -> {args.out}")
     if args.excel:
         with open(args.excel, "wb") as fh:
-            fh.write(build_excel_report(result))
+            fh.write(build_excel_report(result, multiyear=multiyear))
         print(f"Wrote Excel report -> {args.excel}")
     return 0
 
@@ -144,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     _add_common(p_rep)
     p_rep.add_argument("--out", required=True, help="HTML output path")
     p_rep.add_argument("--excel", help="also write an .xlsx workbook here")
+    p_rep.add_argument("--years", type=int, nargs="+",
+                       help="include a multi-year trend section for these years")
     p_rep.set_defaults(func=cmd_report)
 
     p_tr = sub.add_parser("trends", help="multi-year trend summary")

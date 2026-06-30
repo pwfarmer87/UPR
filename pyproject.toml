@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "upr"
+version = "0.1.0"
+description = "University Program (Margin) Review — program/major financial review for universities"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "pandas>=2.1",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.32", "plotly>=5.20"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

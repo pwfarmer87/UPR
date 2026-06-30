@@ -1,0 +1,7 @@
+pydantic>=2.6
+pandas>=2.1
+streamlit>=1.32
+plotly>=5.20
+python-dotenv>=1.0
+requests>=2.31
+pytest>=8.0

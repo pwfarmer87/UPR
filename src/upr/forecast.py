@@ -49,10 +49,17 @@ def _watch_flag(net_margin: float, pct_change: float) -> str:
 
 
 def forecast_frame(
-    result: ReviewResult, assumptions: ForecastAssumptions | None = None
+    result: ReviewResult,
+    assumptions: ForecastAssumptions | None = None,
+    retention_by_program: dict[str, float] | None = None,
 ) -> pd.DataFrame:
-    """Per-program next-year projection with watch flags."""
+    """Per-program next-year projection with watch flags.
+
+    ``retention_by_program`` (e.g. from ``upr.retention``) overrides the flat
+    assumption per program; programs not in the map use ``assumptions.retention_rate``.
+    """
     a = assumptions or ForecastAssumptions()
+    retention_by_program = retention_by_program or {}
     inputs_by_code = {p.program_code: p for p in result.inputs}
     rows = []
     for fin in result.financials:
@@ -61,11 +68,12 @@ def forecast_frame(
         admits = inp.admits if inp else 0
         applications = inp.applications if inp else 0
 
+        retention = retention_by_program.get(fin.program_code, a.retention_rate)
         contribution_per_student = _safe_div(
             fin.contribution_margin, fin.enrolled_majors
         )
         projected_new = deposits * (1 - a.melt_rate)
-        continuing = max(0, fin.enrolled_majors - fin.completions) * a.retention_rate
+        continuing = max(0, fin.enrolled_majors - fin.completions) * retention
         projected_majors = round(continuing + projected_new)
         delta = projected_majors - fin.enrolled_majors
         pct_change = round(_safe_div(delta, fin.enrolled_majors), 4)
@@ -80,6 +88,7 @@ def forecast_frame(
             "deposits": deposits,
             "admit_rate": round(_safe_div(admits, applications), 4),
             "yield_rate": round(_safe_div(deposits, admits), 4),
+            "retention_rate": round(retention, 4),
             "projected_majors": projected_majors,
             "projected_change": delta,
             "projected_pct_change": pct_change,
@@ -95,18 +104,22 @@ def forecast_frame(
 
 
 def watch_list(
-    result: ReviewResult, assumptions: ForecastAssumptions | None = None
+    result: ReviewResult,
+    assumptions: ForecastAssumptions | None = None,
+    retention_by_program: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Just the programs flagged for attention (not 'Stable')."""
-    df = forecast_frame(result, assumptions)
+    df = forecast_frame(result, assumptions, retention_by_program)
     return df[df["watch_flag"] != "Stable"].copy()
 
 
 def forecast_totals(
-    result: ReviewResult, assumptions: ForecastAssumptions | None = None
+    result: ReviewResult,
+    assumptions: ForecastAssumptions | None = None,
+    retention_by_program: dict[str, float] | None = None,
 ) -> dict:
     """Institution-level projection roll-up."""
-    df = forecast_frame(result, assumptions)
+    df = forecast_frame(result, assumptions, retention_by_program)
     current_majors = int(df["enrolled_majors"].sum())
     projected_majors = int(df["projected_majors"].sum())
     return {

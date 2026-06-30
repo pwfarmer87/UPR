@@ -151,10 +151,21 @@ The **Trends & Forecast** tab (and `upr.trends` / `upr.forecast`):
 - **Trends** — runs the review across fiscal years and shows institution totals
   by year, per-program trajectories, and a first-vs-last mover list with CAGR.
 - **Forecast** — projects next year's enrollment, revenue, and contribution from
-  the **Slate funnel** (applications → admits → deposits) using transparent
-  retention/melt assumptions, and flags programs where economics and pipeline
-  diverge: *"healthy but shrinking"* (profitable, enrollment falling) and
-  *"improving"* (underwater, pipeline growing).
+  the **Slate funnel** (applications → admits → deposits), and flags programs
+  where economics and pipeline diverge: *"healthy but shrinking"* (profitable,
+  enrollment falling) and *"improving"* (underwater, pipeline growing).
+- **Estimated retention** (`upr.retention`) — instead of a single flat retention
+  assumption, retention is **estimated per program** from year-over-year
+  enrollment when ≥2 years of data exist (sample, snapshots, or live history):
+
+  ```
+  retention ≈ (enrolled_N − new_entrants) / (enrolled_{N-1} − completions_{N-1})
+  ```
+
+  Each program's estimate feeds the forecast; programs without history fall back
+  to the flat rate. This matters — a 1-year graduate program retains very
+  differently year-over-year than a large service major, and a flat rate hides
+  that. Toggle it in the Trends & Forecast tab or `forecast --estimate-retention`.
 
 ## Faculty payroll
 
@@ -248,6 +259,7 @@ src/upr/
   faculty.py           faculty payroll import + roll-up (auditable instruction cost)
   trends.py            multi-year trend analysis (YoY, CAGR, trajectories)
   forecast.py          next-year enrollment/margin forecast from Slate funnel
+  retention.py         per-program retention estimated from YoY enrollment
   scenario.py          what-if levers (tuition/enrollment/aid/cost) + compare
   storage.py           SQLite snapshot store (saved history → trends)
   auth.py              optional login + role-based capabilities (PBKDF2)

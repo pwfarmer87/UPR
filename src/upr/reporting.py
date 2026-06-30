@@ -17,7 +17,15 @@ import pandas as pd
 
 from upr.forecast import ForecastAssumptions, forecast_frame, forecast_totals
 from upr.pipeline import ReviewResult
+from upr.retention import estimate_from_multiyear, retention_map
 from upr.trends import MultiYearReview, institution_trend, yoy_summary
+
+
+def _retention_from_multiyear(multiyear: MultiYearReview | None) -> dict | None:
+    """Estimate per-program retention if ≥2 years are available, else None."""
+    if multiyear is None or len(multiyear.years) < 2:
+        return None
+    return retention_map(estimate_from_multiyear(multiyear))
 
 _REPORT_COLUMNS = [
     "program_code", "program_name", "college", "degree_level",
@@ -95,7 +103,9 @@ def build_excel_report(
     programs = df[_REPORT_COLUMNS].sort_values("net_margin", ascending=False)
     underwater = programs[programs["net_margin"] < 0]
     college = by_college(result)
-    forecast = forecast_frame(result, assumptions)
+    forecast = forecast_frame(
+        result, assumptions, _retention_from_multiyear(multiyear)
+    )
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -178,10 +188,12 @@ _TABLE_HEAD = (
 
 
 def _forecast_section_html(
-    result: ReviewResult, assumptions: ForecastAssumptions | None
+    result: ReviewResult,
+    assumptions: ForecastAssumptions | None,
+    retention_by_program: dict | None = None,
 ) -> str:
-    fc = forecast_frame(result, assumptions)
-    t = forecast_totals(result, assumptions)
+    fc = forecast_frame(result, assumptions, retention_by_program)
+    t = forecast_totals(result, assumptions, retention_by_program)
     watch = fc[fc["watch_flag"] != "Stable"]
     chg_cls = "pos" if t["projected_change"] >= 0 else "neg"
     cards = (
@@ -266,6 +278,12 @@ def build_html_report(
     assumptions: ForecastAssumptions | None = None,
     include_forecast: bool = True,
 ) -> str:
+    forecast_html = (
+        _forecast_section_html(
+            result, assumptions, _retention_from_multiyear(multiyear)
+        )
+        if include_forecast else ""
+    )
     df = result.to_frame().sort_values("net_margin", ascending=False)
     totals = result.totals()
     underwater = df[df["net_margin"] < 0]
@@ -318,7 +336,7 @@ def build_html_report(
 <div class="kpis">{kpis}</div>
 {underwater_section}
 {_trends_section_html(multiyear)}
-{_forecast_section_html(result, assumptions) if include_forecast else ""}
+{forecast_html}
 <h2>By college</h2>
 <table><thead><tr><th>College</th><th>Programs</th><th>Majors</th><th>Revenue</th>
 <th>Total cost</th><th>Net margin</th><th>Margin %</th></tr></thead>

@@ -36,6 +36,11 @@ from upr.reporting import (  # noqa: E402
     build_html_report,
     by_college,
 )
+from upr.retention import (  # noqa: E402
+    estimate_from_multiyear,
+    retention_frame,
+    retention_map,
+)
 from upr.sample_data import sample_faculty  # noqa: E402
 from upr.scenario import Scenario, compare, compare_totals, run_scenario  # noqa: E402
 from upr.storage import SnapshotStore  # noqa: E402
@@ -429,11 +434,46 @@ with tab_trends:
     st.divider()
     st.subheader("Next-year forecast (from the Slate admissions pipeline)")
     fc1, fc2 = st.columns(2)
-    retention = fc1.slider("Retention rate (continuing majors kept)", 0.5, 1.0, 0.82, 0.01)
+    retention = fc1.slider(
+        "Fallback retention rate (continuing majors kept)", 0.5, 1.0, 0.82, 0.01,
+        help="Used for programs without an estimate.",
+    )
     melt = fc2.slider("Summer melt (deposits that don't enroll)", 0.0, 0.4, 0.12, 0.01)
     assumptions = ForecastAssumptions(retention_rate=retention, melt_rate=melt)
 
-    ftot = forecast_totals(result, assumptions)
+    can_estimate = len(myr.years) >= 2
+    use_estimated = st.checkbox(
+        "Estimate retention per program from history (last two years)",
+        value=can_estimate, disabled=not can_estimate,
+        help="Derives each program's retention from year-over-year enrollment "
+        "instead of one flat rate. Needs ≥2 years of data.",
+    )
+    retention_by_program = None
+    if use_estimated and can_estimate:
+        estimates = estimate_from_multiyear(myr, melt_rate=melt)
+        retention_by_program = retention_map(estimates)
+        est_df = retention_frame(estimates)
+        avg = est_df["retention_rate"].mean()
+        st.caption(
+            f"Estimated retention from FY{min(myr.years)}→FY{max(myr.years)} · "
+            f"average {avg*100:.1f}% (range {est_df['retention_rate'].min()*100:.0f}–"
+            f"{est_df['retention_rate'].max()*100:.0f}%)"
+        )
+        with st.expander("Per-program estimated retention"):
+            st.dataframe(
+                est_df[["program_code", "program_name", "prior_enrolled",
+                        "prior_completions", "new_students", "retained",
+                        "retention_rate"]].sort_values("retention_rate").style.format({
+                    "new_students": "{:,.0f}", "retained": "{:,.0f}",
+                    "retention_rate": "{:.1%}",
+                }),
+                use_container_width=True, hide_index=True,
+            )
+    elif not can_estimate:
+        st.caption("Single year of data — using the flat fallback rate. Load "
+                   "multiple years (or snapshots) to estimate retention per program.")
+
+    ftot = forecast_totals(result, assumptions, retention_by_program)
     g1, g2, g3, g4 = st.columns(4)
     g1.metric("Current majors", f"{ftot['current_majors']:,}")
     g2.metric("Projected majors", f"{ftot['projected_majors']:,}",
@@ -442,7 +482,7 @@ with tab_trends:
     g4.metric("Programs to watch",
               f"{ftot['programs_shrinking'] + ftot['programs_improving']}")
 
-    fc_df = forecast_frame(result, assumptions)
+    fc_df = forecast_frame(result, assumptions, retention_by_program)
     watch = fc_df[fc_df["watch_flag"] != "Stable"]
     if not watch.empty:
         st.caption("⚠️ Economics and pipeline pointing in opposite directions")
@@ -459,10 +499,10 @@ with tab_trends:
     st.caption("All programs — projection")
     st.dataframe(
         fc_df[["program_code", "program_name", "enrolled_majors", "admits",
-               "deposits", "admit_rate", "yield_rate", "projected_majors",
+               "deposits", "yield_rate", "retention_rate", "projected_majors",
                "projected_pct_change", "projected_revenue",
                "projected_contribution_margin", "watch_flag"]].style.format({
-            "admit_rate": "{:.1%}", "yield_rate": "{:.1%}",
+            "yield_rate": "{:.1%}", "retention_rate": "{:.1%}",
             "projected_pct_change": "{:+.1%}",
             "projected_revenue": "${:,.0f}",
             "projected_contribution_margin": "${:,.0f}",

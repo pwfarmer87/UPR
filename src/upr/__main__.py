@@ -110,15 +110,24 @@ def cmd_trends(args) -> int:
 
 
 def cmd_forecast(args) -> int:
-    result = run_review(_settings_from_args(args))
-    t = forecast_totals(result)
+    settings = _settings_from_args(args)
+    result = run_review(settings)
+    rmap = None
+    if args.estimate_retention:
+        from dataclasses import replace
+
+        from upr.retention import estimate_retention, retention_map
+        prev = run_review(replace(settings, fiscal_year=result.fiscal_year - 1))
+        rmap = retention_map(estimate_retention(prev, result))
+    t = forecast_totals(result, retention_by_program=rmap)
     print(f"Source: {', '.join(result.sources_used)}  FY{result.fiscal_year} "
-          f"-> FY{result.fiscal_year + 1} projection")
+          f"-> FY{result.fiscal_year + 1} projection"
+          + ("  (retention estimated from prior year)" if rmap else ""))
     print(f"Majors: {t['current_majors']:,} -> {t['projected_majors']:,}  "
           f"({t['projected_pct_change']*100:+.1f}%)")
     print(f"Projected revenue: ${t['projected_revenue']:,.0f}  "
           f"contribution ${t['projected_contribution_margin']:,.0f}")
-    watch = watch_list(result)
+    watch = watch_list(result, retention_by_program=rmap)
     if not watch.empty:
         print("\nWatch list:")
         for _, r in watch.iterrows():
@@ -181,6 +190,9 @@ def main(argv: list[str] | None = None) -> int:
 
     p_fc = sub.add_parser("forecast", help="next-year enrollment/margin forecast")
     _add_common(p_fc)
+    p_fc.add_argument("--estimate-retention", action="store_true",
+                      dest="estimate_retention",
+                      help="estimate per-program retention from the prior year")
     p_fc.set_defaults(func=cmd_forecast)
 
     p_sc = sub.add_parser("scenario", help="what-if margin impact of global levers")

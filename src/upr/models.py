@@ -8,7 +8,7 @@ Three layers:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class ProgramInputs(BaseModel):
@@ -21,9 +21,19 @@ class ProgramInputs(BaseModel):
     """
 
     program_code: str
-    program_name: str
-    college: str
+    # name/college default so a partial source file (e.g. a NetSuite export with
+    # only codes + dollars) still validates; the merge fills them from Jenzabar.
+    program_name: str = ""
+    college: str = "Unassigned"
     degree_level: str = "Undergraduate"  # Undergraduate | Graduate
+
+    @model_validator(mode="after")
+    def _backfill_name(self) -> "ProgramInputs":
+        if not self.program_name:
+            self.program_name = self.program_code
+        if not self.college:
+            self.college = "Unassigned"
+        return self
 
     # --- Enrollment & activity (Jenzabar) ---
     enrolled_majors: int = Field(0, ge=0)

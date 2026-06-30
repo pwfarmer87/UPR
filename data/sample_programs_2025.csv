@@ -1,0 +1,15 @@
+program_code,program_name,college,degree_level,enrolled_majors,student_credit_hours,completions,faculty_fte,tuition_rate_per_credit_hour,gross_tuition_revenue,institutional_aid,fees_revenue,other_revenue,instruction_cost,departmental_cost,applications,admits,deposits
+NURS,Nursing,Health Sciences,Undergraduate,310,9300.0,78,18.0,1180.0,,3250000.0,410000.0,120000.0,3100000.0,720000.0,880,470,132
+BIOL,Biology,Arts & Sciences,Undergraduate,210,8400.0,44,12.0,1180.0,,2700000.0,250000.0,380000.0,1650000.0,360000.0,640,410,96
+CSCI,Computer Science,Arts & Sciences,Undergraduate,245,7350.0,52,11.0,1180.0,,2050000.0,300000.0,60000.0,1480000.0,300000.0,720,430,110
+BUSN,Business Administration,Business,Undergraduate,420,12600.0,96,16.0,1180.0,,3900000.0,520000.0,90000.0,2050000.0,540000.0,980,660,188
+PSYC,Psychology,Arts & Sciences,Undergraduate,360,10080.0,84,12.0,1180.0,,3050000.0,300000.0,40000.0,1320000.0,280000.0,700,520,150
+ENGL,English,Arts & Sciences,Undergraduate,95,8550.0,22,11.0,1180.0,,1900000.0,120000.0,30000.0,1180000.0,210000.0,240,200,44
+EDUC,Education,Education,Undergraduate,160,5760.0,60,10.0,1180.0,,1650000.0,220000.0,210000.0,1240000.0,360000.0,360,280,78
+ENGR,Engineering,Engineering,Undergraduate,185,6660.0,36,14.0,1180.0,,2100000.0,380000.0,540000.0,2180000.0,620000.0,560,300,84
+MUSI,Music,Fine Arts,Undergraduate,70,3150.0,16,12.0,1180.0,,1150000.0,140000.0,70000.0,1320000.0,290000.0,180,150,34
+HIST,History,Arts & Sciences,Undergraduate,80,5600.0,18,8.0,1180.0,,1350000.0,90000.0,20000.0,760000.0,150000.0,190,165,36
+CHEM,Chemistry,Arts & Sciences,Undergraduate,90,6300.0,20,10.0,1180.0,,1700000.0,200000.0,260000.0,1240000.0,410000.0,230,175,40
+MATH,Mathematics,Arts & Sciences,Undergraduate,85,7650.0,19,9.0,1180.0,,1600000.0,110000.0,50000.0,980000.0,170000.0,200,170,38
+MBA,Master of Business Administration,Business,Graduate,130,3120.0,88,7.0,1450.0,,980000.0,180000.0,60000.0,1120000.0,260000.0,410,300,140
+MSN,Master of Science in Nursing,Health Sciences,Graduate,85,2040.0,54,6.0,1450.0,,720000.0,150000.0,90000.0,980000.0,240000.0,260,180,92

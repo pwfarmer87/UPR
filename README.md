@@ -35,12 +35,46 @@ Set credentials in `.env` (see `.env.example`) and flip `UPR_DATA_SOURCE=live`.
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# run the dashboard
+# run the dashboard (Import / Dashboard / Reports tabs)
 streamlit run dashboard/app.py
 
 # run the tests
 pytest -q
 ```
+
+### Command line
+
+```bash
+python -m upr summary                              # totals for the current source
+python -m upr template --out programs.csv          # blank unified import template
+python -m upr summary --file programs.csv --ops-cost 58000000
+python -m upr report  --file programs.csv --ops-cost 58000000 \
+                      --out review.html --excel review.xlsx
+```
+
+## Importing data (before the APIs)
+
+You don't need the live integrations to start. Export from the source systems
+(or fill the template) and load CSV/Excel:
+
+- **Unified file** — one row per program with any of the template columns.
+- **Per-source files** — separate Jenzabar / NetSuite / Slate exports that
+  **merge by `program_code`**; each file only fills the fields its source owns
+  (so a NetSuite export can't accidentally overwrite enrollment, etc.).
+
+Headers are matched leniently — `Major Code`, `SCH`, `Aid`, `Dept Cost` all map
+correctly. Blank templates and a filled example live in `data/`
+(`import_template.csv`, `sample_programs_2025.csv`). In the dashboard, use the
+**Import** tab; on the CLI/env, set `UPR_DATA_SOURCE=file` and the file paths.
+
+## Reporting
+
+From the **Reports** tab or `python -m upr report`:
+
+- **HTML report** — KPIs, an *underwater-after-overhead* section, a by-college
+  rollup, and the full program table. Standalone and **prints cleanly to PDF**.
+- **Excel workbook** — `Summary`, `Programs`, `Underwater`, `By College` sheets.
+- **CSV** — the computed program table.
 
 ## The financial model (per program, per fiscal year)
 
@@ -73,8 +107,12 @@ student credit hours (default), headcount, or direct cost. See
 src/upr/
   models.py            domain model (Program, ProgramFinancials, metrics)
   config.py            settings / source selection (.env)
-  pipeline.py          pull → normalize → compute
+  sources.py           which fields each source system owns (merge/import)
+  importing.py         CSV/Excel import + templates (the pre-API path)
+  reporting.py         HTML + Excel report builders, by-college rollup
+  pipeline.py          pull/import → merge → compute
   sample_data.py       realistic mock institution
+  __main__.py          CLI: summary | template | report
   connectors/
     base.py            Connector interface
     netsuite.py        NetSuite Financials adapter (auth-pending)
@@ -84,8 +122,9 @@ src/upr/
   finance/
     allocation.py      overhead allocation strategies
     calculations.py    margin & per-unit metrics
-dashboard/app.py       Streamlit dashboard
-tests/                 unit tests for the engine
+dashboard/app.py       Streamlit dashboard (Import / Dashboard / Reports)
+data/                  blank import template + filled sample
+tests/                 unit tests for the engine, import, and reporting
 ```
 
 ## Assumptions in this first version

@@ -19,7 +19,7 @@ from upr.adapters.net_revenue import revenue_by_program
 from upr.models import ProgramInputs
 
 _IMPORT_COLUMNS = [
-    "program_code", "program_name", "college", "enrolled_majors",
+    "program_code", "program_name", "college", "department", "enrolled_majors",
     "student_credit_hours", "gross_tuition_revenue", "institutional_aid",
     "fees_revenue",
 ]
@@ -38,9 +38,10 @@ def build_program_inputs(
     ``program_names`` defaults to the bundled official roster; pass a dict (or an
     empty dict to disable) to override naming.
     """
+    from upr.adapters.programs import load_program_fields, load_program_names
     if program_names is None:
-        from upr.adapters.programs import load_program_names
         program_names = load_program_names()
+    program_fields = load_program_fields()
     rev = revenue_by_program(revenue_df, year, program_names)
     if rev.empty:
         return []
@@ -62,6 +63,7 @@ def build_program_inputs(
             program_code=code,
             program_name=str(r.get("program_name") or code),
             college=str(r.get("college") or "Unassigned"),
+            department=program_fields.get(code, ""),
             enrolled_majors=int(r.get("enrolled_majors") or 0),
             student_credit_hours=round(sch_by_program.get(code, 0.0), 1),
             gross_tuition_revenue=float(r.get("gross_tuition_revenue") or 0.0),

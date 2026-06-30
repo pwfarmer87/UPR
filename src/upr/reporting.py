@@ -44,11 +44,10 @@ def _pct(x: float) -> str:
     return f"{x * 100:.1f}%"
 
 
-def by_college(result: ReviewResult) -> pd.DataFrame:
-    """Aggregate the portfolio to one row per college."""
+def _rollup(result: ReviewResult, by: str) -> pd.DataFrame:
     df = result.to_frame()
     grouped = (
-        df.groupby("college", as_index=False)
+        df.groupby(by, as_index=False)
         .agg(
             programs=("program_code", "count"),
             enrolled_majors=("enrolled_majors", "sum"),
@@ -62,6 +61,19 @@ def by_college(result: ReviewResult) -> pd.DataFrame:
         grouped["net_margin"] / grouped["total_revenue"].replace(0, pd.NA)
     ).fillna(0.0)
     return grouped
+
+
+def by_college(result: ReviewResult) -> pd.DataFrame:
+    """Aggregate the portfolio to one row per college."""
+    return _rollup(result, "college")
+
+
+def by_department(result: ReviewResult) -> pd.DataFrame:
+    """Aggregate the portfolio to one row per department (field of study).
+
+    Only meaningful when programs carry a department (e.g. ingested real data).
+    """
+    return _rollup(result, "department")
 
 
 # --------------------------------------------------------------------------- #
@@ -113,6 +125,9 @@ def build_excel_report(
         programs.to_excel(writer, sheet_name="Programs", index=False)
         underwater.to_excel(writer, sheet_name="Underwater", index=False)
         college.to_excel(writer, sheet_name="By College", index=False)
+        dept = by_department(result)
+        if dept["department"].astype(str).str.strip().any():
+            dept.to_excel(writer, sheet_name="By Department", index=False)
         forecast.to_excel(writer, sheet_name="Forecast", index=False)
         if multiyear is not None and len(multiyear.years) > 1:
             institution_trend(multiyear).to_excel(

@@ -167,6 +167,14 @@ Without a crosswalk, programs still carry headcount + revenue; allocate overhead
 exports — it comes from NetSuite GL or faculty payroll, keyed to the same major
 codes via `config/mapping.yaml`.
 
+**Department rollups.** The bundled roster also carries each program's
+**field of study** (department), so the by-program review rolls up into the
+departments the institution actually uses — the dashboard and Excel report show
+**By department** beside By college (e.g. 60 majors → 23 departments, with
+Business and Education spanning many program codes). SCH-by-major still needs
+student registrations; the department dimension is for grouping, not for
+splitting service/gen-ed teaching cost.
+
 **Authoritative program names.** Programs are named from the institution's
 official `program_code → program_name` roster (bundled at
 `src/upr/adapters/program_codes.csv`), not the messy parsed text. Codes that

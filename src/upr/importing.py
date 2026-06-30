@@ -23,7 +23,8 @@ from upr.sources import ALL_INPUT_FIELDS, fields_for_source
 _ALIASES: dict[str, set[str]] = {
     "program_code": {"code", "major_code", "program", "program_id", "major"},
     "program_name": {"name", "major_name", "major_desc", "program_title", "title"},
-    "college": {"school", "division", "department", "college_name"},
+    "college": {"school", "division", "college_name"},
+    "department": {"field_of_study", "discipline", "dept", "program_department"},
     "degree_level": {"level", "degree", "award_level"},
     "enrolled_majors": {"majors", "headcount", "enrollment", "enrolled", "students"},
     "student_credit_hours": {"sch", "credit_hours", "credit_hrs", "credithours"},
@@ -202,7 +203,7 @@ def template_dataframe(source: str = "all") -> pd.DataFrame:
     Column order is stable and human-friendly (identity first).
     """
     ordered = [
-        "program_code", "program_name", "college", "degree_level",
+        "program_code", "program_name", "college", "department", "degree_level",
         "enrolled_majors", "student_credit_hours", "completions", "faculty_fte",
         "tuition_rate_per_credit_hour", "gross_tuition_revenue",
         "institutional_aid", "fees_revenue", "other_revenue",

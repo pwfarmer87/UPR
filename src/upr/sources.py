@@ -7,7 +7,7 @@ and the importer (restricting a per-source file to the columns it should fill).
 from __future__ import annotations
 
 # Identity columns — present in every source, used to key/merge programs.
-KEY_FIELDS = {"program_code", "program_name", "college", "degree_level"}
+KEY_FIELDS = {"program_code", "program_name", "college", "department", "degree_level"}
 
 # Academic facts — Jenzabar One (SIS).
 ACADEMIC_FIELDS = {

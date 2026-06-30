@@ -35,6 +35,7 @@ from upr.reporting import (  # noqa: E402
     build_excel_report,
     build_html_report,
     by_college,
+    by_department,
 )
 from upr.retention import (  # noqa: E402
     estimate_from_multiyear,
@@ -348,15 +349,24 @@ with tab_dash:
             use_container_width=True, hide_index=True,
         )
 
-    st.subheader("By college")
-    college = by_college(result)
-    st.dataframe(
-        college.style.format({
-            "total_revenue": "${:,.0f}", "total_cost": "${:,.0f}",
-            "net_margin": "${:,.0f}", "net_margin_ratio": "{:.1%}",
-        }),
-        use_container_width=True, hide_index=True,
-    )
+    _fmt = {
+        "total_revenue": "${:,.0f}", "total_cost": "${:,.0f}",
+        "net_margin": "${:,.0f}", "net_margin_ratio": "{:.1%}",
+    }
+    dept = by_department(result)
+    has_dept = dept["department"].astype(str).str.strip().any()
+    if has_dept:
+        gcol, gdep = st.columns(2)
+        gcol.subheader("By college")
+        gcol.dataframe(by_college(result).style.format(_fmt),
+                       use_container_width=True, hide_index=True)
+        gdep.subheader("By department")
+        gdep.dataframe(dept.style.format(_fmt),
+                       use_container_width=True, hide_index=True)
+    else:
+        st.subheader("By college")
+        st.dataframe(by_college(result).style.format(_fmt),
+                     use_container_width=True, hide_index=True)
 
     st.subheader("All programs")
     display_cols = [

@@ -1,72 +1,72 @@
-program_code,program_name
-ACCT,Accounting
-ADEN,Audio Engineering
-AGRI,Agribusiness
-BACC,Business Administration: Accounting
-BAGR,Business Administration: Agribusiness
-BIOL,Biology
-BMGT,Business Administration: Management
-BMRK,Business Administration: Marketing
-BMTS,Business Management
-CHEM,Chemistry
-CIAI,Computer Information Systems: AI and Emerging Tech
-CICS,Computer Information Systems: Cyber Security
-CMMU,Commercial Music
-CRJS,Criminal Justice
-DCAG,Agribusiness
-DCBM,Business Management
-DCCR,Criminal Justice
-DCOL,Organizational Leadership
-DCPS,Psychology
-DCSW,Social Work
-DMDA,Digital Media
-EDEA,Early Childhood Education
-EDST,Educational Studies
-EECD,Education
-EECH,Early Childhood Education
-EEEL,Education
-EELE,Elementary Education
-EELM,Elementary Education
-EMAE,Education
-EMDG,Middle Grades Education
-EMUS,Music Education
-ENGL,English
-ENGN,Engineering
-ENGP,Pre-Engineering
-ENVB,Environmental Biology
-EPHS,Physical Education
-ESEA,Educational Studies: Early Childhood Education
-ESED,Secondary Education
-ESPE,Special Education
-ESPN,Spanish Education
-EXSC,Exercise Science
-HSTY,History and Political Science
-LBS1,Education
-MATH,Mathematics
-MBAD,Business Administration
-MEDB,Medical Biology
-MGMT,Management
-MGSC,Middle Grades Education: Science
-MRKT,Marketing
-PATH,University Pathways - Undeclared
-PHYA,Physics
-PLAD,Music Production: Live Audio
-PNUR,Pre-Nursing
-PPER,Music Production: Performance
-PSTD,Music Production: Studio Recording
-PSYS,Psychology
-PWRP,Music Production: Worship Arts
-SCHM,Secondary Education: Chemistry
-SELA,Secondary Education: English Language Arts
-SHST,Secondary Education: History
-SMTH,Secondary Education: Mathematics
-SPAN,Spanish
-SPMG,Sport Management
-SWRK,Social Work
-TBIB,Theology: Biblical Studies
-THEL,Theology
-TMIN,Theology: Ministry
-UTEA,Early Childhood Education
-UTEL,Elementary Education
-WRSP,Worship Arts
-UNDC,Undecided
+program_code,program_name,field_of_study
+ACCT,Accounting,Business
+ADEN,Audio Engineering,Music
+AGRI,Agribusiness,Agribusiness
+BACC,Business Administration: Accounting,Business
+BAGR,Business Administration: Agribusiness,Business
+BIOL,Biology,Biology
+BMGT,Business Administration: Management,Business
+BMRK,Business Administration: Marketing,Business
+BMTS,Business Management,Business
+CHEM,Chemistry,Chemistry
+CIAI,Computer Information Systems: AI and Emerging Tech,Computer Information Systems
+CICS,Computer Information Systems: Cyber Security,Computer Information Systems
+CMMU,Commercial Music,Music
+CRJS,Criminal Justice,Criminal Justice
+DCAG,Agribusiness,Agribusiness
+DCBM,Business Management,Business
+DCCR,Criminal Justice,Criminal Justice
+DCOL,Organizational Leadership,Organizational Leadership
+DCPS,Psychology,Psychology
+DCSW,Social Work,Social Work
+DMDA,Digital Media,Digital Media
+EDEA,Early Childhood Education,Education
+EDST,Educational Studies,Education
+EECD,Education,Education
+EECH,Early Childhood Education,Education
+EEEL,Education,Education
+EELE,Elementary Education,Education
+EELM,Elementary Education,Education
+EMAE,Education,Education
+EMDG,Middle Grades Education,Education
+EMUS,Music Education,Music
+ENGL,English,English
+ENGN,Engineering,Engineering
+ENGP,Pre-Engineering,Engineering
+ENVB,Environmental Biology,Biology
+EPHS,Physical Education,Physical Education
+ESEA,Educational Studies: Early Childhood Education,Education
+ESED,Secondary Education,Education
+ESPE,Special Education,Education
+ESPN,Spanish Education,Education
+EXSC,Exercise Science,Exercise Science
+HSTY,History and Political Science,History and Political Science
+LBS1,Education,Education
+MATH,Mathematics,Mathematics
+MBAD,Business Administration,Business
+MEDB,Medical Biology,Biology
+MGMT,Management,Business
+MGSC,Middle Grades Education: Science,Education
+MRKT,Marketing,Business
+PATH,University Pathways - Undeclared,Undeclared
+PHYA,Physics,Physics
+PLAD,Music Production: Live Audio,Music
+PNUR,Pre-Nursing,Nursing
+PPER,Music Production: Performance,Music
+PSTD,Music Production: Studio Recording,Music
+PSYS,Psychology,Psychology
+PWRP,Music Production: Worship Arts,Music
+SCHM,Secondary Education: Chemistry,Education
+SELA,Secondary Education: English Language Arts,Education
+SHST,Secondary Education: History,Education
+SMTH,Secondary Education: Mathematics,Education
+SPAN,Spanish,Spanish
+SPMG,Sport Management,Sport Management
+SWRK,Social Work,Social Work
+TBIB,Theology: Biblical Studies,Theology
+THEL,Theology,Theology
+TMIN,Theology: Ministry,Theology
+UTEA,Early Childhood Education,Education
+UTEL,Elementary Education,Education
+WRSP,Worship Arts,Music
+UNDC,Undecided,Undeclared

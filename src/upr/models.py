@@ -25,6 +25,7 @@ class ProgramInputs(BaseModel):
     # only codes + dollars) still validates; the merge fills them from Jenzabar.
     program_name: str = ""
     college: str = "Unassigned"
+    department: str = ""  # field of study (finer grouping than college)
     degree_level: str = "Undergraduate"  # Undergraduate | Graduate
 
     @model_validator(mode="after")
@@ -88,6 +89,7 @@ class ProgramFinancials(BaseModel):
     program_code: str
     program_name: str
     college: str
+    department: str
     degree_level: str
 
     enrolled_majors: int

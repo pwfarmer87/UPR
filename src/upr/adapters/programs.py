@@ -15,13 +15,16 @@ import pandas as pd
 BUNDLED_ROSTER = Path(__file__).with_name("program_codes.csv")
 
 
+def _read_roster(source) -> pd.DataFrame:
+    df = source.copy() if isinstance(source, pd.DataFrame) \
+        else pd.read_csv(source or BUNDLED_ROSTER)
+    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+    return df
+
+
 def load_program_names(source=None) -> dict[str, str]:
     """Return {program_code: program_name}. Defaults to the bundled roster."""
-    if isinstance(source, pd.DataFrame):
-        df = source.copy()
-    else:
-        df = pd.read_csv(source or BUNDLED_ROSTER)
-    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+    df = _read_roster(source)
     code_col = "program_code" if "program_code" in df.columns else df.columns[0]
     name_col = "program_name" if "program_name" in df.columns else df.columns[1]
     out: dict[str, str] = {}
@@ -29,4 +32,18 @@ def load_program_names(source=None) -> dict[str, str]:
         code, name = str(code).strip(), str(name).strip()
         if code and code.lower() != "nan":
             out[code] = name
+    return out
+
+
+def load_program_fields(source=None) -> dict[str, str]:
+    """Return {program_code: field_of_study (department)} from the roster."""
+    df = _read_roster(source)
+    if "field_of_study" not in df.columns:
+        return {}
+    code_col = "program_code" if "program_code" in df.columns else df.columns[0]
+    out: dict[str, str] = {}
+    for code, field in zip(df[code_col], df["field_of_study"]):
+        code, field = str(code).strip(), str(field).strip()
+        if code and code.lower() != "nan" and field and field.lower() != "nan":
+            out[code] = field
     return out

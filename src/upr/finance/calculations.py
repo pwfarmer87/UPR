@@ -31,6 +31,7 @@ def compute_program_financials(
         program_code=program.program_code,
         program_name=program.program_name,
         college=program.college,
+        department=program.department,
         degree_level=program.degree_level,
         enrolled_majors=program.enrolled_majors,
         student_credit_hours=program.student_credit_hours,
